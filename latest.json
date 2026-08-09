@@ -1,6 +1,6 @@
 {
-  "version": 3,
+  "version": 4,
   "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "3328d29e296e7d8579e0ab74f9364910934e4c29a96613b31faf8ee761b1c9af",
-  "notes": "Mi Semana v3: sincronización de datos"
+  "sha256": "daf1e64c8584d76903b87190733ba97c46212041004f0e17c2db1ba3c4a1d757",
+  "notes": "Fix sincronización v4: no interfiere con eventos"
 }

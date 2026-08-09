@@ -155,9 +155,18 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
 @media(max-width:650px){.progress-grid{grid-template-columns:repeat(2,1fr)}.metric-card{min-height:118px}.view-tabs{overflow:auto}.bar-row{grid-template-columns:90px 1fr 45px}}
 
 
-.sync-pill{display:inline-flex;align-items:center;gap:7px;margin-left:8px;padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.75);font-size:11px;font-weight:700;color:var(--muted);cursor:pointer}
+.sync-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 12px;border-radius:999px;
+  border:1px solid rgba(0,0,0,.08);
+  background:rgba(255,255,255,.78);
+  font-size:11px;font-weight:700;color:var(--muted);
+  cursor:pointer;box-shadow:0 1px 0 rgba(0,0,0,.02)
+}
 .sync-pill .dot{width:7px;height:7px;border-radius:50%;background:#a1a1a6}
-.sync-pill.ok .dot{background:#34c759}.sync-pill.busy .dot{background:#ff9f0a}.sync-pill.err .dot{background:#ff3b30}
+.sync-pill.ok .dot{background:#34c759}
+.sync-pill.busy .dot{background:#ff9f0a}
+.sync-pill.err .dot{background:#ff3b30}
 
 </style>
 </head>
@@ -166,6 +175,11 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
   <div class="view-tabs">
     <button class="view-tab active" id="tabSchedule">Horario</button>
     <button class="view-tab" id="tabProgress">Progreso</button>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px">
+    <button class="sync-pill" id="syncPill" type="button" title="Sincronización">
+      <span class="dot"></span><span id="syncText">Local</span>
+    </button>
   </div>
   <div class="view active" id="scheduleView">
   <div class="topbar">
@@ -540,7 +554,10 @@ function getWeekEvents(){
 function setWeekEvents(evts){
   store.weeks[isoWeekKey(weekOffset)]=evts; saveStore();
 }
-function saveStore(){localStorage.setItem(STORAGE_KEY,JSON.stringify(store))}
+function saveStore(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
+  if(window.miSemanaSyncSchedule) window.miSemanaSyncSchedule();
+}
 
 function mondayOfWeek(offset=0){
   const d=new Date(); d.setHours(12,0,0,0);
@@ -918,72 +935,87 @@ document.getElementById('saveReflectionBtn').onclick=()=>{const p=getProgressWee
 document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek();const income=prompt('Ingresos totales de esta semana (€):',p.income||0);if(income===null)return;const goal=prompt('Objetivo de ingresos (€):',p.incomeGoal||500);if(goal===null)return;const extra=prompt('Horas extra no planificadas:',p.extraHours||0);if(extra===null)return;const raw=prompt('Clientes: escribe Nombre=Ingresos=Horas separados por coma. Ej: Cliente A=200=3, Cliente B=150=2', (p.clients||[]).map(c=>`${c.name}=${c.income}=${c.hours}`).join(', '));p.income=Math.max(0,+income||0);p.incomeGoal=Math.max(1,+goal||500);p.extraHours=Math.max(0,+extra||0);p.clients=(raw||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [name,inc,h]=x.split('=');return{name:(name||'Cliente').trim(),income:+inc||0,hours:+h||0}});saveStore();renderProgress()};
 
 
-// --- Mi Semana Sync v1 ---
+// --- Mi Semana Sync v4: isolated and non-invasive ---
 (function(){
-  if(!window.miSemanaDesktop?.syncPull) return;
-  const pill=()=>document.getElementById('syncPill');
-  const txt=()=>document.getElementById('syncText');
-  function status(kind,label){
-    if(!pill()) return;
-    pill().classList.remove('ok','busy','err');
-    if(kind) pill().classList.add(kind);
-    txt().textContent=label;
+  if(!window.miSemanaDesktop?.syncPull || !window.miSemanaDesktop?.syncPush) return;
+
+  const pill=()=>document.getElementById("syncPill");
+  const text=()=>document.getElementById("syncText");
+  let syncTimer=null;
+  let applyingRemote=false;
+
+  function setStatus(kind,label){
+    const p=pill(),t=text();
+    if(!p||!t) return;
+    p.classList.remove("ok","busy","err");
+    if(kind) p.classList.add(kind);
+    t.textContent=label;
   }
-  function snapshot(){
-    try{
-      const raw=localStorage.getItem(STORE_KEY);
-      return {
-        schema:1,
-        updatedAt:new Date().toISOString(),
-        store: raw ? JSON.parse(raw) : null
-      };
-    }catch{return null}
+
+  function makeSnapshot(){
+    return {
+      schema:1,
+      updatedAt:new Date().toISOString(),
+      store:JSON.parse(JSON.stringify(store))
+    };
   }
-  function applyRemote(payload){
-    if(!payload?.store) return false;
-    localStorage.setItem(STORE_KEY,JSON.stringify(payload.store));
-    return true;
-  }
-  async function pull(){
-    status('busy','Sincronizando…');
-    const r=await window.miSemanaDesktop.syncPull();
-    if(!r.ok){status('err','Sin conexión');return false}
-    if(!r.data){status('ok','Conectado');return true}
-    let localUpdated='';
-    try{localUpdated=JSON.parse(localStorage.getItem('miSemanaSyncMeta')||'{}').updatedAt||''}catch{}
-    const remoteUpdated=r.data.updatedAt||'';
-    if(remoteUpdated && (!localUpdated || remoteUpdated>localUpdated)){
-      if(applyRemote(r.data)){
-        localStorage.setItem('miSemanaSyncMeta',JSON.stringify({updatedAt:remoteUpdated}));
-        status('ok','Actualizado');
-        setTimeout(()=>location.reload(),350);
-        return true;
-      }
+
+  async function pushNow(){
+    if(applyingRemote) return;
+    setStatus("busy","Guardando…");
+    const payload=makeSnapshot();
+    const result=await window.miSemanaDesktop.syncPush(payload);
+    if(result?.ok){
+      localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:payload.updatedAt}));
+      setStatus("ok","Sincronizado");
+    }else{
+      setStatus("err","Pendiente");
     }
-    status('ok','Sincronizado');
-    return true;
   }
-  let timer;
-  async function push(){
-    clearTimeout(timer);
-    timer=setTimeout(async()=>{
-      const data=snapshot(); if(!data) return;
-      status('busy','Guardando…');
-      const r=await window.miSemanaDesktop.syncPush(data);
-      if(r.ok){
-        localStorage.setItem('miSemanaSyncMeta',JSON.stringify({updatedAt:data.updatedAt}));
-        status('ok','Sincronizado');
-      }else status('err','Pendiente');
-    },700);
-  }
-  const originalSetItem=Storage.prototype.setItem;
-  Storage.prototype.setItem=function(k,v){
-    originalSetItem.call(this,k,v);
-    if(this===localStorage && k===STORE_KEY) push();
+
+  window.miSemanaSyncSchedule=function(){
+    if(applyingRemote) return;
+    clearTimeout(syncTimer);
+    syncTimer=setTimeout(pushNow,900);
   };
-  window.addEventListener('DOMContentLoaded',()=>{
-    pill()?.addEventListener('click',pull);
-    pull();
+
+  async function pullNow(){
+    setStatus("busy","Sincronizando…");
+    const result=await window.miSemanaDesktop.syncPull();
+    if(!result?.ok){
+      setStatus("err","Sin conexión");
+      return;
+    }
+
+    const remote=result.data;
+    if(!remote?.store){
+      setStatus("ok","Conectado");
+      return;
+    }
+
+    let localUpdated="";
+    try{
+      localUpdated=JSON.parse(localStorage.getItem("miSemanaSyncMeta")||"{}").updatedAt||"";
+    }catch{}
+
+    if(remote.updatedAt && (!localUpdated || remote.updatedAt>localUpdated)){
+      applyingRemote=true;
+      store=remote.store;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
+      localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:remote.updatedAt}));
+      applyingRemote=false;
+      setStatus("ok","Actualizado");
+      renderHeader();
+      renderCalendar();
+      if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
+      return;
+    }
+    setStatus("ok","Sincronizado");
+  }
+
+  window.addEventListener("DOMContentLoaded",()=>{
+    pill()?.addEventListener("click",pullNow);
+    setTimeout(pullNow,300);
   });
 })();
 
