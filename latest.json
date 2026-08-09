@@ -1,6 +1,6 @@
 {
-  "version": 4,
+  "version": 6,
   "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "daf1e64c8584d76903b87190733ba97c46212041004f0e17c2db1ba3c4a1d757",
-  "notes": "Fix sincronización v4: no interfiere con eventos"
+  "sha256": "82b079aae9f795d2f95d6727437f9e4c8547b2dc15776486d198344a9a188ee8",
+  "notes": "v6: eliminar fiable + sincronización local-first + subida robusta"
 }

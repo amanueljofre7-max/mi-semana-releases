@@ -703,7 +703,17 @@ function saveModal(){
 }
 function deleteCurrent(){
   if(!editingId)return;
-  setWeekEvents(getWeekEvents().filter(x=>x.id!==editingId));closeModal();renderCalendar()
+  const id=editingId;
+  const current=getWeekEvents();
+  const exists=current.some(x=>x.id===id);
+  if(!exists)return;
+
+  const next=current.filter(x=>x.id!==id);
+  editingId=null;
+  setWeekEvents(next);
+  closeModal();
+  renderCalendar();
+  if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
 }
 setupDaySelect();renderHeader();renderCalendar();
 document.getElementById("prevBtn").onclick=()=>{weekOffset--;renderHeader();renderCalendar()};
@@ -935,55 +945,88 @@ document.getElementById('saveReflectionBtn').onclick=()=>{const p=getProgressWee
 document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek();const income=prompt('Ingresos totales de esta semana (€):',p.income||0);if(income===null)return;const goal=prompt('Objetivo de ingresos (€):',p.incomeGoal||500);if(goal===null)return;const extra=prompt('Horas extra no planificadas:',p.extraHours||0);if(extra===null)return;const raw=prompt('Clientes: escribe Nombre=Ingresos=Horas separados por coma. Ej: Cliente A=200=3, Cliente B=150=2', (p.clients||[]).map(c=>`${c.name}=${c.income}=${c.hours}`).join(', '));p.income=Math.max(0,+income||0);p.incomeGoal=Math.max(1,+goal||500);p.extraHours=Math.max(0,+extra||0);p.clients=(raw||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [name,inc,h]=x.split('=');return{name:(name||'Cliente').trim(),income:+inc||0,hours:+h||0}});saveStore();renderProgress()};
 
 
-// --- Mi Semana Sync v4: isolated and non-invasive ---
+// --- Mi Semana Sync v6: local-first, conflict-safe ---
 (function(){
   if(!window.miSemanaDesktop?.syncPull || !window.miSemanaDesktop?.syncPush) return;
 
+  const META_KEY="miSemanaSyncMeta";
   const pill=()=>document.getElementById("syncPill");
   const text=()=>document.getElementById("syncText");
-  let syncTimer=null;
+  let timer=null;
   let applyingRemote=false;
+  let lastError="";
 
-  function setStatus(kind,label){
-    const p=pill(),t=text();
-    if(!p||!t) return;
-    p.classList.remove("ok","busy","err");
-    if(kind) p.classList.add(kind);
-    t.textContent=label;
+  function readMeta(){
+    try{return JSON.parse(localStorage.getItem(META_KEY)||"{}")}
+    catch{return {}}
   }
-
-  function makeSnapshot(){
+  function writeMeta(meta){
+    localStorage.setItem(META_KEY,JSON.stringify(meta));
+  }
+  function setStatus(kind,label,error=""){
+    const p=pill(),t=text();
+    lastError=error||"";
+    if(!p||!t)return;
+    p.classList.remove("ok","busy","err");
+    if(kind)p.classList.add(kind);
+    t.textContent=label;
+    p.title=lastError?("Sincronización: "+lastError):"Sincronización";
+  }
+  function snapshot(updatedAt){
     return {
       schema:1,
-      updatedAt:new Date().toISOString(),
+      updatedAt,
       store:JSON.parse(JSON.stringify(store))
     };
   }
 
   async function pushNow(){
-    if(applyingRemote) return;
+    if(applyingRemote)return false;
+    const meta=readMeta();
+    const updatedAt=meta.localUpdatedAt||new Date().toISOString();
     setStatus("busy","Guardando…");
-    const payload=makeSnapshot();
-    const result=await window.miSemanaDesktop.syncPush(payload);
+    const result=await window.miSemanaDesktop.syncPush(snapshot(updatedAt));
+
     if(result?.ok){
-      localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:payload.updatedAt}));
+      writeMeta({
+        localUpdatedAt:updatedAt,
+        remoteUpdatedAt:updatedAt,
+        dirty:false,
+        lastSyncedAt:result.syncedAt||new Date().toISOString()
+      });
       setStatus("ok","Sincronizado");
-    }else{
-      setStatus("err","Pendiente");
+      return true;
     }
+
+    writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:result?.error||"Error desconocido"});
+    setStatus("err","Pendiente",result?.error||"No se pudo guardar en GitHub");
+    return false;
   }
 
   window.miSemanaSyncSchedule=function(){
-    if(applyingRemote) return;
-    clearTimeout(syncTimer);
-    syncTimer=setTimeout(pushNow,900);
+    if(applyingRemote)return;
+    const updatedAt=new Date().toISOString();
+    const meta=readMeta();
+    writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true});
+    clearTimeout(timer);
+    timer=setTimeout(pushNow,900);
   };
 
   async function pullNow(){
+    let meta=readMeta();
+
+    // Local changes always win while dirty. Never overwrite them with stale remote data.
+    if(meta.dirty){
+      setStatus("busy","Guardando…");
+      const pushed=await pushNow();
+      if(!pushed)return;
+      meta=readMeta();
+    }
+
     setStatus("busy","Sincronizando…");
     const result=await window.miSemanaDesktop.syncPull();
     if(!result?.ok){
-      setStatus("err","Sin conexión");
+      setStatus("err","Sin conexión",result?.error||"No se pudo leer GitHub");
       return;
     }
 
@@ -993,29 +1036,40 @@ document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek()
       return;
     }
 
-    let localUpdated="";
-    try{
-      localUpdated=JSON.parse(localStorage.getItem("miSemanaSyncMeta")||"{}").updatedAt||"";
-    }catch{}
+    const remoteTime=remote.updatedAt||"";
+    const localTime=meta.localUpdatedAt||meta.remoteUpdatedAt||"";
 
-    if(remote.updatedAt && (!localUpdated || remote.updatedAt>localUpdated)){
+    if(remoteTime && (!localTime || remoteTime>localTime)){
       applyingRemote=true;
       store=remote.store;
       localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
-      localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:remote.updatedAt}));
+      writeMeta({
+        localUpdatedAt:remoteTime,
+        remoteUpdatedAt:remoteTime,
+        dirty:false,
+        lastSyncedAt:new Date().toISOString()
+      });
       applyingRemote=false;
-      setStatus("ok","Actualizado");
+
       renderHeader();
       renderCalendar();
       if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
+      setStatus("ok","Actualizado");
       return;
     }
+
     setStatus("ok","Sincronizado");
   }
 
   window.addEventListener("DOMContentLoaded",()=>{
-    pill()?.addEventListener("click",pullNow);
-    setTimeout(pullNow,300);
+    pill()?.addEventListener("click",async()=>{
+      if(lastError){
+        alert("Último error de sincronización:\\n\\n"+lastError);
+      }else{
+        await pullNow();
+      }
+    });
+    setTimeout(pullNow,350);
   });
 })();
 
