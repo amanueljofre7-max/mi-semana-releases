@@ -1,6 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
   "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "2ff8ddb40d460d4f3f32653b431b93e6092e45e22213c37b3fb01d92db18a14e",
-  "notes": "Canal inicial de Mi Semana"
+  "sha256": "05364742c8e0083b785c6a8c746799b6040b49db29c542e1edff2337658a2109",
+  "notes": "Prueba del canal remoto: indicador de actualización conectada"
 }
