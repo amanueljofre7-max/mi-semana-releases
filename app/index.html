@@ -945,7 +945,7 @@ document.getElementById('saveReflectionBtn').onclick=()=>{const p=getProgressWee
 document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek();const income=prompt('Ingresos totales de esta semana (€):',p.income||0);if(income===null)return;const goal=prompt('Objetivo de ingresos (€):',p.incomeGoal||500);if(goal===null)return;const extra=prompt('Horas extra no planificadas:',p.extraHours||0);if(extra===null)return;const raw=prompt('Clientes: escribe Nombre=Ingresos=Horas separados por coma. Ej: Cliente A=200=3, Cliente B=150=2', (p.clients||[]).map(c=>`${c.name}=${c.income}=${c.hours}`).join(', '));p.income=Math.max(0,+income||0);p.incomeGoal=Math.max(1,+goal||500);p.extraHours=Math.max(0,+extra||0);p.clients=(raw||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [name,inc,h]=x.split('=');return{name:(name||'Cliente').trim(),income:+inc||0,hours:+h||0}});saveStore();renderProgress()};
 
 
-// --- Mi Semana Sync v6: local-first, conflict-safe ---
+// --- Mi Semana Sync v7: timeout + retry + local-first ---
 (function(){
   if(!window.miSemanaDesktop?.syncPull || !window.miSemanaDesktop?.syncPush) return;
 
@@ -970,7 +970,9 @@ document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek()
     p.classList.remove("ok","busy","err");
     if(kind)p.classList.add(kind);
     t.textContent=label;
-    p.title=lastError?("Sincronización: "+lastError):"Sincronización";
+    p.title=lastError
+      ? "Haz clic para reintentar.\n\n"+lastError
+      : "Haz clic para sincronizar ahora";
   }
   function snapshot(updatedAt){
     return {
@@ -979,28 +981,52 @@ document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek()
       store:JSON.parse(JSON.stringify(store))
     };
   }
+  function withTimeout(promise,ms,label){
+    return Promise.race([
+      promise,
+      new Promise((_,reject)=>setTimeout(
+        ()=>reject(new Error(label||"Tiempo de espera agotado")),
+        ms
+      ))
+    ]);
+  }
 
   async function pushNow(){
     if(applyingRemote)return false;
+
     const meta=readMeta();
     const updatedAt=meta.localUpdatedAt||new Date().toISOString();
     setStatus("busy","Guardando…");
-    const result=await window.miSemanaDesktop.syncPush(snapshot(updatedAt));
 
-    if(result?.ok){
-      writeMeta({
-        localUpdatedAt:updatedAt,
-        remoteUpdatedAt:updatedAt,
-        dirty:false,
-        lastSyncedAt:result.syncedAt||new Date().toISOString()
-      });
-      setStatus("ok","Sincronizado");
-      return true;
+    try{
+      const result=await withTimeout(
+        window.miSemanaDesktop.syncPush(snapshot(updatedAt)),
+        10000,
+        "GitHub no respondió en 10 segundos"
+      );
+
+      if(result?.ok){
+        writeMeta({
+          localUpdatedAt:updatedAt,
+          remoteUpdatedAt:updatedAt,
+          dirty:false,
+          lastSyncedAt:result.syncedAt||new Date().toISOString()
+        });
+        setStatus("ok","Sincronizado");
+        return true;
+      }
+
+      const err=result?.error||"No se pudo guardar en GitHub";
+      writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:err});
+      setStatus("err","Pendiente",err);
+      return false;
+
+    }catch(e){
+      const err=e?.message||"Tiempo de espera agotado";
+      writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:err});
+      setStatus("err","Pendiente",err);
+      return false;
     }
-
-    writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:result?.error||"Error desconocido"});
-    setStatus("err","Pendiente",result?.error||"No se pudo guardar en GitHub");
-    return false;
   }
 
   window.miSemanaSyncSchedule=function(){
@@ -1015,61 +1041,74 @@ document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek()
   async function pullNow(){
     let meta=readMeta();
 
-    // Local changes always win while dirty. Never overwrite them with stale remote data.
     if(meta.dirty){
-      setStatus("busy","Guardando…");
       const pushed=await pushNow();
       if(!pushed)return;
       meta=readMeta();
     }
 
     setStatus("busy","Sincronizando…");
-    const result=await window.miSemanaDesktop.syncPull();
-    if(!result?.ok){
-      setStatus("err","Sin conexión",result?.error||"No se pudo leer GitHub");
-      return;
+
+    try{
+      const result=await withTimeout(
+        window.miSemanaDesktop.syncPull(),
+        10000,
+        "GitHub no respondió en 10 segundos"
+      );
+
+      if(!result?.ok){
+        const err=result?.error||"No se pudo leer GitHub";
+        setStatus("err","Pendiente",err);
+        return;
+      }
+
+      const remote=result.data;
+      if(!remote?.store){
+        setStatus("ok","Conectado");
+        return;
+      }
+
+      const remoteTime=remote.updatedAt||"";
+      const localTime=meta.localUpdatedAt||meta.remoteUpdatedAt||"";
+
+      if(remoteTime && (!localTime || remoteTime>localTime)){
+        applyingRemote=true;
+        store=remote.store;
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
+        writeMeta({
+          localUpdatedAt:remoteTime,
+          remoteUpdatedAt:remoteTime,
+          dirty:false,
+          lastSyncedAt:new Date().toISOString()
+        });
+        applyingRemote=false;
+
+        renderHeader();
+        renderCalendar();
+        if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
+        setStatus("ok","Actualizado");
+        return;
+      }
+
+      setStatus("ok","Sincronizado");
+
+    }catch(e){
+      setStatus("err","Pendiente",e?.message||"Tiempo de espera agotado");
     }
-
-    const remote=result.data;
-    if(!remote?.store){
-      setStatus("ok","Conectado");
-      return;
-    }
-
-    const remoteTime=remote.updatedAt||"";
-    const localTime=meta.localUpdatedAt||meta.remoteUpdatedAt||"";
-
-    if(remoteTime && (!localTime || remoteTime>localTime)){
-      applyingRemote=true;
-      store=remote.store;
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
-      writeMeta({
-        localUpdatedAt:remoteTime,
-        remoteUpdatedAt:remoteTime,
-        dirty:false,
-        lastSyncedAt:new Date().toISOString()
-      });
-      applyingRemote=false;
-
-      renderHeader();
-      renderCalendar();
-      if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
-      setStatus("ok","Actualizado");
-      return;
-    }
-
-    setStatus("ok","Sincronizado");
   }
 
   window.addEventListener("DOMContentLoaded",()=>{
     pill()?.addEventListener("click",async()=>{
-      if(lastError){
-        alert("Último error de sincronización:\\n\\n"+lastError);
-      }else{
-        await pullNow();
-      }
+      setStatus("busy","Reintentando…");
+      await pullNow();
     });
-    setTimeout(pullNow,350);
+
+    // Nunca bloquear el arranque: primer intento en segundo plano.
+    setTimeout(()=>{
+      const meta=readMeta();
+      if(meta.dirty) setStatus("err","Pendiente",meta.lastError||"Hay cambios locales por sincronizar");
+      pullNow();
+    },500);
   });
 })();
 
