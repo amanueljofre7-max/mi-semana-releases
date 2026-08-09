@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mi semana</title>
+<style>
+:root{
+  --bg:#f5f5f7; --panel:rgba(255,255,255,.9); --text:#1d1d1f; --muted:#6e6e73;
+  --line:#d2d2d7; --blue:#0071e3; --shadow:0 12px 40px rgba(0,0,0,.08); --radius:22px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  background:linear-gradient(180deg,#fbfbfd 0%,#f5f5f7 60%,#ececf0 100%);
+}
+.app{max-width:1500px;margin:0 auto;padding:28px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px}
+.title-wrap h1{margin:0;font-size:34px;letter-spacing:-1px}
+.title-wrap p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+button{
+  border:0;border-radius:999px;padding:10px 16px;font-weight:600;font-size:14px;cursor:pointer;
+  transition:.2s;background:#fff;color:var(--text);
+  box-shadow:0 1px 0 rgba(0,0,0,.03), inset 0 0 0 1px rgba(0,0,0,.08)
+}
+button:hover{transform:translateY(-1px)}
+button.primary{background:var(--blue);color:#fff;box-shadow:none}
+.week-card{
+  background:var(--panel);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid rgba(0,0,0,.06);box-shadow:var(--shadow);border-radius:var(--radius);overflow:hidden
+}
+.week-head{
+  display:grid;grid-template-columns:72px repeat(7,1fr);border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.72);position:sticky;top:0;z-index:5
+}
+.corner{min-height:74px;border-right:1px solid var(--line)}
+.day-head{padding:14px 10px;text-align:center;border-right:1px solid var(--line)}
+.day-head:last-child{border-right:none}
+.day-name{color:var(--muted);text-transform:uppercase;font-size:11px;font-weight:700;letter-spacing:.08em}
+.day-num{font-size:26px;font-weight:700;margin-top:4px}
+.day-head.today .day-num{
+  display:inline-flex;width:38px;height:38px;align-items:center;justify-content:center;background:var(--blue);color:#fff;border-radius:50%
+}
+.calendar-wrap{overflow:auto;max-height:calc(100vh - 185px)}
+.calendar{position:relative;display:grid;grid-template-columns:72px repeat(7,1fr);min-width:1000px}
+.time-col{position:relative;height:960px;border-right:1px solid var(--line);background:rgba(255,255,255,.5)}
+.time-label{position:absolute;right:10px;transform:translateY(-8px);color:#86868b;font-size:11px}
+.day-col{
+  position:relative;height:960px;border-right:1px solid var(--line);
+  background-image:linear-gradient(to bottom,transparent 59px,rgba(210,210,215,.85) 60px);background-size:100% 60px
+}
+.day-col:last-child{border-right:none}
+.day-col::after{
+  content:"";position:absolute;inset:0;background-image:linear-gradient(to bottom,transparent 29px,rgba(210,210,215,.35) 30px);
+  background-size:100% 60px;pointer-events:none
+}
+.event{
+  position:absolute;left:7px;right:7px;border-radius:12px;padding:8px 9px;font-size:12px;overflow:hidden;
+  cursor:grab;z-index:2;border:1px solid rgba(0,0,0,.06);box-shadow:0 4px 10px rgba(0,0,0,.06);user-select:none
+}
+.event:active{cursor:grabbing}
+.event .ev-title{font-weight:700;line-height:1.15}
+.event .ev-time{opacity:.72;margin-top:3px;font-size:11px}
+.c-work{background:#e7f2ff;color:#0b4f93}.c-study{background:#eee9ff;color:#5b36a6}
+.c-gym{background:#e9f8ef;color:#2e6c46}.c-uni{background:#fff0e7;color:#9b4f18}
+.c-dog{background:#fff7cf;color:#7b6510}.c-life{background:#f0f0f3;color:#48484a}
+.c-project{background:#ffe9f2;color:#9c325d}
+.c-meal{background:#fff8e8;color:#7a5a12}.c-futsal{background:#e8f7f4;color:#19685f}
+.empty-hint{
+  position:absolute;inset:auto 12px 12px 12px;padding:8px 10px;font-size:11px;color:#86868b;
+  background:rgba(255,255,255,.72);border-radius:10px;opacity:0;transition:.2s
+}
+.day-col:hover .empty-hint{opacity:1}
+.modal-backdrop{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.28);backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;z-index:20;padding:18px
+}
+.modal{
+  width:min(520px,94vw);max-height:90vh;overflow:auto;background:#fff;border-radius:24px;padding:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.22)
+}
+.modal h3{margin:0 0 6px;font-size:22px}
+.summary-badge{
+  display:inline-flex;padding:5px 9px;border-radius:999px;background:#f2f2f7;color:#6e6e73;font-size:11px;font-weight:700;margin-bottom:16px
+}
+.field{margin-bottom:13px}
+label{display:block;font-size:12px;font-weight:700;color:#6e6e73;margin-bottom:6px}
+input,select,textarea{
+  width:100%;padding:12px 13px;border-radius:12px;border:1px solid #d2d2d7;font:inherit;background:#fafafa;color:var(--text)
+}
+textarea{min-height:84px;resize:vertical;line-height:1.4}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+.danger{color:#c62828}
+.footer-note{color:#86868b;font-size:12px;margin-top:12px;text-align:center}
+.week-status{
+  margin:0 0 16px;padding:12px 15px;border-radius:16px;background:rgba(255,255,255,.75);
+  border:1px solid rgba(0,0,0,.05);font-size:13px;color:#515154
+}
+.week-status strong{color:#1d1d1f}
+@media(max-width:760px){
+  .app{padding:14px}.topbar{align-items:flex-start;flex-direction:column}.controls{justify-content:flex-start}
+  .title-wrap h1{font-size:28px}.calendar-wrap{max-height:calc(100vh - 250px)}.row{grid-template-columns:1fr}
+}
+
+/* --- Progreso: extensión visual usando el mismo lenguaje del calendario --- */
+.view-tabs{display:flex;gap:8px;margin-bottom:16px}
+.view-tab{background:rgba(255,255,255,.78);color:var(--muted);box-shadow:0 1px 0 rgba(0,0,0,.03),inset 0 0 0 1px rgba(0,0,0,.07)}
+.view-tab.active{background:#fff;color:var(--text);box-shadow:0 6px 22px rgba(0,0,0,.07),inset 0 0 0 1px rgba(0,0,0,.06)}
+.view{display:none}.view.active{display:block}
+.progress-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.metric-card,.progress-card{background:rgba(255,255,255,.82);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 28px rgba(0,0,0,.055);border-radius:18px}
+.metric-card{padding:16px;min-height:130px;display:flex;flex-direction:column;justify-content:space-between}
+.metric-label{font-size:12px;color:var(--muted);font-weight:700}.metric-value{font-size:28px;letter-spacing:-.8px;font-weight:700;margin-top:8px}.metric-sub{font-size:11px;color:var(--muted);margin-top:7px}
+.metric-track{height:6px;background:#e9e9ed;border-radius:999px;overflow:hidden;margin-top:12px}.metric-fill{height:100%;background:var(--blue);border-radius:999px}
+.progress-layout{display:grid;grid-template-columns:1.35fr .85fr;gap:16px}.progress-card{padding:18px}.progress-card h3{margin:0 0 4px;font-size:17px}.progress-card .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+.trend-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.trend-range{display:flex;gap:6px;flex-wrap:wrap}
+.trend-range button{padding:7px 11px;font-size:11px;background:#fff}
+.trend-range button.active{background:var(--blue);color:#fff;box-shadow:none}
+.chart{height:245px;position:relative;border-left:1px solid #ececf0;border-bottom:1px solid #ececf0;margin:18px 8px 8px 34px;background-image:linear-gradient(to bottom,rgba(210,210,215,.35) 1px,transparent 1px);background-size:100% 25%}
+.chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}.chart-labels{display:flex;justify-content:space-between;color:#86868b;font-size:10px;margin:8px 8px 0 34px}
+.summary-list{display:grid;gap:0}.summary-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:13px}.summary-row:last-child{border-bottom:none}.summary-name{color:#515154}.summary-value{font-weight:700}
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:16px;margin-top:16px}.bar-row{display:grid;grid-template-columns:105px 1fr 52px;align-items:center;gap:10px;margin:14px 0;font-size:12px}.mini-track{height:7px;background:#e9e9ed;border-radius:999px;overflow:hidden}.mini-fill{height:100%;background:var(--blue);border-radius:999px}
+.client-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.055);font-size:13px}.client-row:last-child{border-bottom:none}.client-meta{color:var(--muted);font-size:11px;margin-top:3px}
+.reflection textarea{min-height:116px}.reflection-actions{display:flex;justify-content:flex-end;margin-top:10px}.weekly-reminder{margin-top:16px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.76);border:1px solid rgba(0,113,227,.14);font-size:13px;color:#515154}.weekly-reminder strong{color:var(--text)}
+.metric-accent-study .metric-fill,.study-fill{background:#7b61d1}.metric-accent-work .metric-fill,.work-fill{background:#36a269}.metric-accent-income .metric-fill{background:#f0a31a}.metric-accent-gym .metric-fill,.gym-fill{background:#ef5c5c}.metric-accent-load .metric-fill{background:#8f68d8}.project-fill{background:#d9913f}.free-fill{background:#65a2ea}
+
+.status-actions{display:grid;grid-template-columns:1.55fr 1fr 1fr;gap:8px;margin-top:8px}
+.status-btn{border-radius:14px;padding:11px 12px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);background:#fff;color:var(--text);font-weight:650}
+.status-btn.done{background:#e9f8ef;color:#22663d;box-shadow:inset 0 0 0 1px rgba(46,108,70,.16)}
+.status-btn.pending{background:#f5f5f7;color:#515154}
+.status-btn.missed{background:#fff1f0;color:#a23b33;box-shadow:inset 0 0 0 1px rgba(162,59,51,.14)}
+.status-btn.active{outline:2px solid var(--blue);outline-offset:1px}
+.event.event-completed::after{content:"✓";position:absolute;top:7px;right:8px;font-weight:800;font-size:12px}
+.event.event-cancelled::after{content:"×";position:absolute;top:7px;right:8px;font-weight:800;font-size:14px}
+.actual-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.35}
+.event.priority-high{box-shadow:inset 3px 0 0 #ff3b30,0 4px 10px rgba(0,0,0,.06)}
+.event.priority-medium{box-shadow:inset 3px 0 0 #ff9f0a,0 4px 10px rgba(0,0,0,.06)}
+.event.priority-low{box-shadow:inset 3px 0 0 rgba(110,110,115,.32),0 4px 10px rgba(0,0,0,.06)}
+.event-meta{font-size:10px;opacity:.7;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.energy-days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px}
+.energy-day{padding:10px 8px;border-radius:14px;background:#f7f7f9;border:1px solid rgba(0,0,0,.055);text-align:center}
+.energy-day span{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:7px}
+.energy-day select{padding:8px 6px;text-align:center;background:#fff}
+.insight-list{display:grid;gap:9px;margin-top:12px}
+.insight-line{padding:10px 12px;border-radius:13px;background:#f7f7f9;border:1px solid rgba(0,0,0,.045);font-size:12px;line-height:1.45;color:#515154}
+.insight-line strong{color:var(--text)}
+.deadline-note{font-size:11px;color:var(--muted);margin-top:6px}
+@media(max-width:900px){.insight-grid{grid-template-columns:1fr}.energy-days{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:1100px){.progress-grid{grid-template-columns:repeat(3,1fr)}.progress-layout{grid-template-columns:1fr}.bottom-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.progress-grid{grid-template-columns:repeat(2,1fr)}.metric-card{min-height:118px}.view-tabs{overflow:auto}.bar-row{grid-template-columns:90px 1fr 45px}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="view-tabs">
+    <button class="view-tab active" id="tabSchedule">Horario</button>
+    <button class="view-tab" id="tabProgress">Progreso</button>
+  </div>
+  <div class="view active" id="scheduleView">
+  <div class="topbar">
+    <div class="title-wrap">
+      <h1>Mi semana</h1>
+      <p id="weekLabel">Calendario semanal</p>
+    </div>
+    <div class="controls">
+      <button id="prevBtn">‹ Semana</button>
+      <button id="todayBtn">Hoy</button>
+      <button id="nextBtn">Semana ›</button>
+      <button class="primary" id="addBtn">+ Añadir</button>
+    </div>
+  </div>
+
+  <div class="week-status" id="weekStatus">
+    <strong>Plan base:</strong> las semanas nuevas copian la organización de la semana 3–9 de agosto. Los estados de progreso se reinician en cada semana.
+  </div>
+
+  <div class="week-card">
+    <div class="week-head" id="weekHead"><div class="corner"></div></div>
+    <div class="calendar-wrap">
+      <div class="calendar" id="calendar"><div class="time-col" id="timeCol"></div></div>
+    </div>
+  </div>
+  <div class="footer-note">Clic = ver qué toca y por qué · doble clic = añadir · arrastra = mover · los cambios son semanales</div>
+  </div>
+
+  <div class="view" id="progressView">
+    <div class="topbar">
+      <div class="title-wrap">
+        <h1>Progreso</h1>
+        <p id="progressWeekLabel">Seguimiento semanal</p>
+      </div>
+      <div class="controls">
+        <button id="progressPrevBtn">‹ Semana</button>
+        <button id="progressTodayBtn">Hoy</button>
+        <button id="progressNextBtn">Semana ›</button>
+      </div>
+    </div>
+
+    <div class="progress-grid">
+      <div class="metric-card"><div><div class="metric-label">Cumplimiento semanal</div><div class="metric-value" id="kpiCompletion">0%</div><div class="metric-sub" id="kpiCompletionSub">0 / 0 bloques</div></div><div class="metric-track"><div class="metric-fill" id="kpiCompletionFill" style="width:0%"></div></div></div>
+      <div class="metric-card metric-accent-study"><div><div class="metric-label">Estudio</div><div class="metric-value" id="kpiStudy">0 h</div><div class="metric-sub" id="kpiStudySub">Objetivo: 10 h</div></div><div class="metric-track"><div class="metric-fill" id="kpiStudyFill" style="width:0%"></div></div></div>
+      <div class="metric-card metric-accent-work"><div><div class="metric-label">Trabajo</div><div class="metric-value" id="kpiWork">0 h</div><div class="metric-sub" id="kpiWorkSub">Objetivo: 7,5 h</div></div><div class="metric-track"><div class="metric-fill" id="kpiWorkFill" style="width:0%"></div></div></div>
+      <div class="metric-card metric-accent-income"><div><div class="metric-label">Ingresos</div><div class="metric-value" id="kpiIncome">0 €</div><div class="metric-sub">Objetivo configurable</div></div><div class="metric-track"><div class="metric-fill" id="kpiIncomeFill" style="width:0%"></div></div></div>
+      <div class="metric-card metric-accent-gym"><div><div class="metric-label">Gym</div><div class="metric-value" id="kpiGym">0/4</div><div class="metric-sub">Sesiones completadas</div></div><div class="metric-track"><div class="metric-fill" id="kpiGymFill" style="width:0%"></div></div></div>
+      <div class="metric-card metric-accent-load"><div><div class="metric-label">Carga percibida</div><div class="metric-value" id="kpiLoad">–/10</div><div class="metric-sub">Cómo se sintió la semana</div></div><div class="metric-track"><div class="metric-fill" id="kpiLoadFill" style="width:0%"></div></div></div>
+    </div>
+
+    <div class="progress-layout">
+      <div class="progress-card">
+        <div class="trend-head">
+          <div><h3 id="trendTitle">Evolución semanal</h3><div class="sub" id="trendSubtitle">Últimas 8 semanas · cumplimiento y carga percibida</div></div>
+          <div class="trend-range" id="trendRange">
+            <button data-range="7d">Últimos 7 días</button>
+            <button class="active" data-range="1m">Último mes</button>
+            <button data-range="3m">Últimos 3 meses</button>
+            <button data-range="6m">Últimos 6 meses</button>
+            <button data-range="1y">Último año</button>
+            <button data-range="max">Máx.</button>
+          </div>
+        </div>
+        <div class="chart"><svg viewBox="0 0 700 245" preserveAspectRatio="none">
+          <polyline id="completionLine" fill="none" stroke="#0071e3" stroke-width="3" points=""/>
+          <polyline id="loadLine" fill="none" stroke="#9b9ba1" stroke-width="2" stroke-dasharray="6 6" points=""/>
+        </svg></div>
+        <div class="chart-labels" id="chartLabels"></div>
+      </div>
+      <div class="progress-card">
+        <h3>Resumen de la semana</h3><div class="sub">Qué pasó realmente</div>
+        <div class="summary-list">
+          <div class="summary-row"><span class="summary-name">Bloques planificados</span><span class="summary-value" id="sumPlanned">0</span></div>
+          <div class="summary-row"><span class="summary-name">Bloques completados</span><span class="summary-value" id="sumCompleted">0</span></div>
+          <div class="summary-row"><span class="summary-name">Bloques movidos</span><span class="summary-value" id="sumMoved">0</span></div>
+          <div class="summary-row"><span class="summary-name">Bloques cancelados</span><span class="summary-value" id="sumCancelled">0</span></div>
+          <div class="summary-row"><span class="summary-name">Horas extra no planificadas</span><span class="summary-value" id="sumExtra">0 h</span></div>
+          <div class="summary-row"><span class="summary-name">Días 100% completados</span><span class="summary-value" id="sumPerfectDays">0/7</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-grid">
+      <div class="progress-card">
+        <h3>Real vs planificado</h3><div class="sub">Horas registradas esta semana</div>
+        <div class="bar-row"><span>Estudio</span><div class="mini-track"><div class="mini-fill study-fill" id="barStudy"></div></div><strong id="barStudyText">0%</strong></div>
+        <div class="bar-row"><span>Trabajo</span><div class="mini-track"><div class="mini-fill work-fill" id="barWork"></div></div><strong id="barWorkText">0%</strong></div>
+        <div class="bar-row"><span>Gym</span><div class="mini-track"><div class="mini-fill gym-fill" id="barGym"></div></div><strong id="barGymText">0%</strong></div>
+        <div class="bar-row"><span>Proyecto</span><div class="mini-track"><div class="mini-fill project-fill" id="barProject"></div></div><strong id="barProjectText">0%</strong></div>
+      </div>
+      <div class="progress-card">
+        <h3>Ingresos por clientes</h3><div class="sub">Control de rentabilidad</div>
+        <div id="clientsList"></div>
+        <div class="summary-row" style="margin-top:8px"><span class="summary-name">€/hora de trabajo</span><span class="summary-value" id="hourlyRate">0 €</span></div>
+        <button style="margin-top:12px" id="editFinanceBtn">Editar datos</button>
+      </div>
+      <div class="progress-card reflection">
+        <h3>Reflexión semanal</h3><div class="sub">Qué funcionó y qué cambiar</div>
+        <label>Carga percibida (1–10)</label><input id="loadInput" type="number" min="1" max="10" placeholder="Ej. 7" />
+        <label style="margin-top:12px">Notas</label><textarea id="reflectionText" placeholder="¿Qué funcionó? ¿Qué te costó? ¿Qué cambiarías la próxima semana?"></textarea>
+        <div class="reflection-actions"><button class="primary" id="saveReflectionBtn">Guardar reflexión</button></div>
+      </div>
+    </div>
+
+    <div class="insight-grid">
+      <div class="progress-card"><h3>Energía diaria</h3><div class="sub">1 = muy baja · 5 = muy alta</div><div class="energy-days" id="energyDays"></div></div>
+      <div class="progress-card"><h3>Resumen automático</h3><div class="sub">Lectura de tus datos para mejorar la semana siguiente</div><div class="insight-list" id="autoSummary"></div></div>
+    </div>
+    <div class="weekly-reminder"><strong>Recordatorio semanal:</strong> no buscamos cumplir el 100% siempre. Buscamos un sistema sostenible que mejore con datos reales cada semana.</div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">Evento</h3>
+    <div class="summary-badge" id="summaryBadge">Plan de la semana</div>
+
+    <div class="field">
+      <label>Título</label>
+      <input id="fTitle" placeholder="Ej. Estudio, Gym, Cliente A..." />
+    </div>
+
+    <div class="field">
+      <label>Qué tienes que hacer</label>
+      <textarea id="fAction" placeholder="Pasos concretos para este bloque"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Por qué está aquí</label>
+      <textarea id="fReason" placeholder="Motivo de organización y objetivo del bloque"></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Día</label>
+        <select id="fDay"></select>
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="fType">
+          <option value="work">Trabajo</option>
+          <option value="study">Estudio</option>
+          <option value="gym">Gym</option>
+          <option value="uni">Universidad</option>
+          <option value="dog">Perro</option>
+          <option value="project">Proyecto</option>
+          <option value="futsal">Futsal</option>
+          <option value="meal">Comida</option>
+          <option value="life">Personal</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Prioridad</label><select id="fPriority"><option value="high">Alta</option><option value="medium" selected>Media</option><option value="low">Baja</option></select></div>
+      <div class="field"><label>Fecha límite <span style="font-weight:500">(opcional)</span></label><input id="fDeadline" type="date" /><div class="deadline-note">Para exámenes, entregas o compromisos con clientes.</div></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Inicio</label><input id="fStart" type="time" step="900" /></div>
+      <div class="field"><label>Fin</label><input id="fEnd" type="time" step="900" /></div>
+    </div>
+
+    <div class="field" id="completionField" style="display:none">
+      <label>Seguimiento del evento</label>
+      <input id="fStatus" type="hidden" value="pending" />
+      <div class="status-actions">
+        <button type="button" class="status-btn done" id="markCompletedBtn">✓ Marcar como hecho</button>
+        <button type="button" class="status-btn pending" id="markPendingBtn">○ Pendiente</button>
+        <button type="button" class="status-btn missed" id="markCancelledBtn">× No realizado</button>
+      </div>
+      <div style="margin-top:12px">
+        <label>Tiempo real <span style="font-weight:500">(opcional)</span></label>
+        <input id="fActual" type="number" min="0" step="0.25" placeholder="Ej. 1.5 h" />
+        <div class="actual-hint">Si lo marcas como hecho y lo dejas vacío, usaremos automáticamente la duración planificada.</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="danger" id="deleteBtn">Eliminar</button>
+      <div style="display:flex;gap:8px">
+        <button id="cancelBtn">Cancelar</button>
+        <button class="primary" id="saveBtn">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const START_HOUR=8,END_HOUR=24,PX_PER_MIN=1;
+const STORAGE_KEY="weeklyPlannerApple_v3";
+let weekOffset=0, editingId=null;
+let trendRange="1m";
+let dragGrabOffsetMin=0;
+
+const baseTemplate=[
+// LUNES · gym + estudio
+{day:0,start:"08:00",end:"08:30",title:"Desayuno",type:"meal",track:false,action:"Desayunar sin prisas y preparar lo necesario para la mañana.",reason:"Lo dejamos visible para que el horario refleje el tiempo real del día, pero no cuenta en los KPI de cumplimiento."},
+{day:0,start:"08:30",end:"09:00",title:"Paseo perro",type:"dog",action:"Sacar al perro durante 30 minutos.",reason:"Rutina diaria y transición antes de empezar el bloque principal."},
+{day:0,start:"09:00",end:"10:30",title:"Gym",type:"gym",action:"Sesión completa de gimnasio de 90 minutos. Prioriza una rutina compatible con los entrenamientos de futsal de martes y jueves.",reason:"El lunes pasa a ser día de gym + estudio para separar el entrenamiento de los días de trabajo con clientes."},
+{day:0,start:"11:00",end:"13:00",title:"Estudio profundo",type:"study",action:"Dos horas sin distracciones. Empieza por ejercicios, entregas o contenidos difíciles y deja el repaso ligero para el final.",reason:"Es uno de los bloques académicos fuertes de la semana y aprovecha que este día no tienes clientes por la mañana."},
+{day:0,start:"13:15",end:"14:00",title:"Comida",type:"meal",track:false,action:"Comer y dejar preparado lo necesario antes de salir.",reason:"Bloque realista para no invadir el margen previo a la universidad."},
+{day:0,start:"15:00",end:"16:00",title:"Trayecto",type:"life",track:false,action:"Salir hacia la universidad con margen.",reason:"Tiempo de desplazamiento real; no se contabiliza como tarea productiva."},
+{day:0,start:"16:00",end:"20:15",title:"Universidad",type:"uni",action:"Clases. Anota tareas, fechas, dudas y entregas para trasladarlas después a los bloques de estudio.",reason:"Obligación fija alrededor de la que se organiza el resto de la semana."},
+{day:0,start:"20:15",end:"21:00",title:"Vuelta a casa",type:"life",track:false,action:"Regresar a casa y desconectar progresivamente.",reason:"Se reserva para no considerar falsamente este tiempo como disponible."},
+{day:0,start:"21:00",end:"21:45",title:"Cena",type:"meal",track:false,action:"Cenar en casa y bajar el ritmo.",reason:"Te deja una noche normal después de la universidad sin alargar tareas productivas."},
+
+// MARTES · trabajo + estudio + futsal
+{day:1,start:"08:00",end:"08:30",title:"Desayuno",type:"meal",track:false,action:"Desayunar y preparar la mañana.",reason:"Tiempo real del día; no afecta a los KPI."},
+{day:1,start:"08:30",end:"09:00",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Rutina estable antes del trabajo."},
+{day:1,start:"09:00",end:"12:00",title:"Trabajo clientes",type:"work",action:"Bloque de producción: contenido, publicaciones, reels, copies, automatizaciones y entregables. Evita WhatsApp y tareas pequeñas mientras produces.",reason:"Martes se convierte en uno de los dos grandes días de clientes. Así no mezclas gym, trabajo y estudio intenso en la misma mañana."},
+{day:1,start:"12:00",end:"13:30",title:"Estudio",type:"study",action:"Repaso, ejercicios o entregas prioritarias durante 90 minutos.",reason:"Mantiene continuidad académica incluso en un día centrado en trabajo."},
+{day:1,start:"13:30",end:"14:15",title:"Comida",type:"meal",track:false,action:"Comer antes de salir y asegurar una comida completa antes de una tarde larga.",reason:"Martes acabas con futsal, así que conviene llegar bien alimentado a la universidad."},
+{day:1,start:"15:00",end:"16:00",title:"Trayecto",type:"life",track:false,action:"Salir hacia la universidad.",reason:"Margen protegido antes de clase."},
+{day:1,start:"16:00",end:"20:15",title:"Universidad",type:"uni",action:"Clases y captura de tareas, fechas y dudas.",reason:"Bloque fijo."},
+{day:1,start:"20:15",end:"21:00",title:"Uni → Dante",type:"life",track:false,action:"Ir directamente desde la universidad hacia Dante.",reason:"El entrenamiento empieza oficialmente a las 20:30, pero tu llegada real prevista es alrededor de las 21:00."},
+{day:1,start:"21:00",end:"22:00",title:"Futsal · Dante",type:"futsal",action:"Entrenamiento de futsal. Incorporarte al llegar y completar el resto de la sesión.",reason:"Es uno de tus dos entrenamientos semanales de futsal; por eso eliminamos el gym de martes."},
+{day:1,start:"22:00",end:"22:45",title:"Dante → casa",type:"life",track:false,action:"Volver a casa después del entrenamiento.",reason:"Desplazamiento real; no es tiempo disponible."},
+{day:1,start:"22:45",end:"23:15",title:"Cena",type:"meal",track:false,action:"Cenar al llegar a casa.",reason:"La cena se retrasa por el futsal y queda reflejada para que la planificación nocturna sea realista."},
+{day:1,start:"23:15",end:"23:45",title:"Ducha + desconexión",type:"life",track:false,action:"Ducharte, preparar el día siguiente y reducir pantallas/actividad antes de dormir.",reason:"Después de entrenar no es realista llegar y dormir inmediatamente; dejamos un margen de bajada de revoluciones."},
+
+// MIÉRCOLES · gym + estudio
+{day:2,start:"08:30",end:"09:00",title:"Desayuno",type:"meal",track:false,action:"Desayunar. El miércoles empieza 30 minutos más tarde por la noche de futsal del martes.",reason:"Protege algo más el descanso después de llegar tarde el martes."},
+{day:2,start:"09:00",end:"09:30",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Rutina diaria adaptada al inicio algo más tardío."},
+{day:2,start:"09:30",end:"11:00",title:"Gym",type:"gym",action:"Sesión de gimnasio de 90 minutos. Evita una carga de piernas excesiva si el futsal del martes ha sido intenso.",reason:"Segundo día de gym, manteniendo el trabajo de clientes concentrado en martes y jueves."},
+{day:2,start:"11:30",end:"13:30",title:"Estudio profundo",type:"study",action:"Dos horas de trabajo académico concentrado. Prioriza exámenes, ejercicios y entregas.",reason:"Miércoles es el segundo día fuerte de gym + estudio y no tienes que cambiar de contexto hacia clientes."},
+{day:2,start:"13:30",end:"14:15",title:"Comida",type:"meal",track:false,action:"Comer y prepararte para salir.",reason:"Mantiene margen antes de la universidad."},
+{day:2,start:"15:00",end:"16:00",title:"Trayecto",type:"life",track:false,action:"Salir hacia la universidad.",reason:"Tiempo real de desplazamiento."},
+{day:2,start:"16:00",end:"20:15",title:"Universidad",type:"uni",action:"Clases y captura de tareas/fechas.",reason:"Bloque fijo."},
+{day:2,start:"20:15",end:"21:00",title:"Vuelta a casa",type:"life",track:false,action:"Volver a casa.",reason:"Tiempo real de desplazamiento."},
+{day:2,start:"21:00",end:"21:45",title:"Cena",type:"meal",track:false,action:"Cenar y desconectar.",reason:"Noche normal tras la universidad."},
+
+// JUEVES · trabajo + estudio + futsal
+{day:3,start:"08:00",end:"08:30",title:"Desayuno",type:"meal",track:false,action:"Desayunar y preparar la mañana.",reason:"Tiempo real del día; no afecta a los KPI."},
+{day:3,start:"08:30",end:"09:00",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Rutina estable antes del trabajo."},
+{day:3,start:"09:00",end:"12:00",title:"Trabajo clientes",type:"work",action:"Segundo bloque grande de producción semanal. Termina entregables y deja lo máximo posible cerrado antes del viernes.",reason:"Concentra el trabajo en martes y jueves, reduciendo cambios de contexto durante la semana."},
+{day:3,start:"12:00",end:"13:30",title:"Estudio",type:"study",action:"Repaso, ejercicios o entregas prioritarias durante 90 minutos.",reason:"Mantiene el estudio distribuido aunque el bloque principal de la mañana sea laboral."},
+{day:3,start:"13:30",end:"14:15",title:"Comida",type:"meal",track:false,action:"Comida completa antes de la universidad y el futsal.",reason:"Jueves vuelve a ser un día largo y conviene llegar bien alimentado."},
+{day:3,start:"15:00",end:"16:00",title:"Trayecto",type:"life",track:false,action:"Salir hacia la universidad.",reason:"Margen protegido."},
+{day:3,start:"16:00",end:"20:15",title:"Universidad",type:"uni",action:"Clases y captura de tareas/fechas.",reason:"Bloque fijo."},
+{day:3,start:"20:15",end:"21:00",title:"Uni → Dante",type:"life",track:false,action:"Ir directamente hacia Dante.",reason:"Tu llegada real prevista es aproximadamente a las 21:00 aunque la sesión empiece a las 20:30."},
+{day:3,start:"21:00",end:"22:00",title:"Futsal · Dante",type:"futsal",action:"Entrenamiento de futsal desde tu llegada hasta el final de la sesión.",reason:"Segundo entrenamiento semanal; por eso jueves tampoco lleva gym."},
+{day:3,start:"22:00",end:"22:45",title:"Dante → casa",type:"life",track:false,action:"Volver a casa.",reason:"Desplazamiento real."},
+{day:3,start:"22:45",end:"23:15",title:"Cena",type:"meal",track:false,action:"Cenar al llegar.",reason:"Cena tardía prevista por el entrenamiento."},
+{day:3,start:"23:15",end:"23:45",title:"Ducha + desconexión",type:"life",track:false,action:"Ducha, preparar el viernes y bajar revoluciones antes de dormir.",reason:"El horario nocturno se adapta al futsal para que el plan sea realista."},
+
+// VIERNES · gym + gestión + repaso
+{day:4,start:"08:30",end:"09:00",title:"Desayuno",type:"meal",track:false,action:"Desayunar. El viernes también empieza algo más tarde por el futsal del jueves.",reason:"Protege algo más el descanso tras la noche larga del jueves."},
+{day:4,start:"09:00",end:"09:30",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Rutina diaria."},
+{day:4,start:"09:30",end:"11:00",title:"Gym",type:"gym",action:"Tercera sesión semanal de gimnasio. Ajusta la carga de piernas según cómo hayas salido del futsal.",reason:"Completa tres sesiones de gym sin necesidad de ocupar el sábado."},
+{day:4,start:"11:15",end:"12:30",title:"Trabajo · gestión",type:"work",action:"Responder clientes, programar publicaciones, revisar métricas, organizar entregas y cerrar administración. No iniciar producción pesada salvo urgencia.",reason:"Viernes sirve para cerrar cabos y que los clientes queden atendidos antes del fin de semana."},
+{day:4,start:"12:30",end:"13:30",title:"Repaso",type:"study",action:"Repasar la semana y anotar qué necesita atención la semana siguiente.",reason:"Cierre académico corto para no perder pendientes durante el fin de semana."},
+{day:4,start:"13:30",end:"14:15",title:"Comida",type:"meal",track:false,action:"Comer y prepararte para salir.",reason:"Tiempo real antes de la universidad."},
+{day:4,start:"15:00",end:"16:00",title:"Trayecto",type:"life",track:false,action:"Salir hacia la universidad.",reason:"Margen protegido."},
+{day:4,start:"16:00",end:"20:15",title:"Universidad",type:"uni",action:"Clases y captura de tareas/fechas.",reason:"Bloque fijo."},
+{day:4,start:"20:15",end:"21:00",title:"Vuelta a casa",type:"life",track:false,action:"Volver a casa.",reason:"Tiempo real de desplazamiento."},
+{day:4,start:"21:00",end:"21:45",title:"Cena",type:"meal",track:false,action:"Cenar y empezar el fin de semana.",reason:"Cierre de un día de universidad normal."},
+
+// SÁBADO · colchón, sin gym
+{day:5,start:"09:30",end:"10:00",title:"Desayuno",type:"meal",track:false,action:"Desayunar con un horario más flexible.",reason:"El fin de semana no necesita empezar tan pronto como los días de universidad."},
+{day:5,start:"10:00",end:"10:30",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Mantiene la obligación diaria."},
+{day:5,start:"10:30",end:"12:30",title:"Bloque flexible",type:"project",action:"Úsalo solo si hace falta: cliente urgente, recuperación de estudio, proyecto personal o pendiente. Si la semana está controlada, déjalo libre.",reason:"El sábado queda sin gym y funciona como colchón para imprevistos, no como otro día obligatorio de productividad."},
+{day:5,start:"14:00",end:"14:45",title:"Comida",type:"meal",track:false,action:"Comida del sábado.",reason:"Bloque orientativo y flexible."},
+{day:5,start:"21:00",end:"21:45",title:"Cena",type:"meal",track:false,action:"Cena del sábado.",reason:"Bloque orientativo y flexible."},
+
+// DOMINGO · estudio + revisión
+{day:6,start:"09:30",end:"10:00",title:"Desayuno",type:"meal",track:false,action:"Desayunar con calma.",reason:"Inicio flexible del domingo."},
+{day:6,start:"10:00",end:"10:30",title:"Paseo perro",type:"dog",action:"Paseo de 30 minutos.",reason:"Mantiene la rutina diaria."},
+{day:6,start:"10:30",end:"12:00",title:"Gym",type:"gym",action:"Entrenamiento de gimnasio de 90 minutos.",reason:"Cuarta sesión de gimnasio semanal. El domingo permite entrenar por la mañana sin interferir con universidad, trabajo o futsal y deja el resto del día para estudio y planificación."},
+{day:6,start:"12:15",end:"14:15",title:"Estudio semanal",type:"study",action:"Cerrar pendientes, preparar entregas, revisar exámenes y mirar la semana académica que empieza.",reason:"Después del gym queda un bloque académico de dos horas para cerrar la semana y reducir la presión del lunes."},
+{day:6,start:"14:15",end:"15:00",title:"Comida",type:"meal",track:false,action:"Comida del domingo.",reason:"Marca una pausa clara tras el estudio."},
+{day:6,start:"19:30",end:"20:00",title:"Planificar semana",type:"life",action:"Revisar exámenes, entregas, clientes, compromisos, gym, futsal e imprevistos. Ajusta solo la semana que entra.",reason:"Es el momento de convertir el plan base en una semana realista según lo que haya aparecido."},
+{day:6,start:"21:00",end:"21:45",title:"Cena",type:"meal",track:false,action:"Cena del domingo.",reason:"Cierre del fin de semana antes de empezar la nueva semana."}
+].map((e,i)=>({...e,id:"base-"+i}));
+
+const REFERENCE_WEEK_KEY="2026-08-03";
+
+function addMinutesToTime(t,mins){
+  const [h,m]=t.split(":").map(Number);
+  const total=h*60+m+mins;
+  return `${String(Math.floor(total/60)).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`;
+}
+
+function ensureSundayGym(events){
+  if(!Array.isArray(events)) return events;
+  const hasSundayGym=events.some(e=>e.day===6&&e.type==="gym"&&!e.cancelled);
+  if(hasSundayGym) return events;
+
+  const dog=events.find(e=>e.day===6&&e.type==="dog");
+  const start=dog?.end||"10:30";
+  const end=addMinutesToTime(start,90);
+
+  // Si algún bloque del domingo se solapa con el nuevo gym, se desplaza
+  // lo mínimo necesario para conservarlo sin perder la organización existente.
+  const startMin=timeToMin(start), endMin=timeToMin(end);
+  const sunday=events
+    .filter(e=>e.day===6&&e!==dog)
+    .sort((a,b)=>timeToMin(a.start)-timeToMin(b.start));
+
+  let cursor=endMin+15;
+  sunday.forEach(e=>{
+    const s=timeToMin(e.start), en=timeToMin(e.end);
+    if(s<endMin && en>startMin){
+      const dur=en-s;
+      e.start=minToTime(cursor);
+      e.end=minToTime(cursor+dur);
+      cursor+=dur;
+    }
+  });
+
+  events.push({
+    day:6,start,end,title:"Gym",type:"gym",
+    action:"Entrenamiento de gimnasio de 90 minutos.",
+    reason:"Cuarta sesión semanal. Se coloca justo después de pasear al perro el domingo para completar el objetivo de 4 sesiones sin ocupar el sábado.",
+    priority:"medium",deadline:"",completed:false,actualMinutes:0,moved:false,cancelled:false,
+    id:"sunday-gym-"+Date.now()
+  });
+  return events;
+}
+
+function getMasterTemplate(){
+  const saved=store?.weeks?.[REFERENCE_WEEK_KEY];
+  if(Array.isArray(saved)&&saved.length){
+    return ensureSundayGym(saved.map(e=>({...e})));
+  }
+  return ensureSundayGym(baseTemplate.map(e=>({...e})));
+}
+
+function cloneTemplate(){
+  return getMasterTemplate().map((e,i)=>({
+    ...e,
+    id:"w-"+Date.now()+"-"+i+"-"+Math.random().toString(36).slice(2,7),
+    completed:false,
+    actualMinutes:0,
+    moved:false,
+    cancelled:false,
+    priority:e.priority||(e.track===false?"low":"medium"),
+    // Los deadlines son específicos de una semana; no se arrastran.
+    deadline:""
+  }));
+}
+function isoWeekKey(offset=0){
+  const mon=mondayOfWeek(offset);
+  return mon.toISOString().slice(0,10);
+}
+function loadStore(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{weeks:{}}}
+  catch(e){return {weeks:{}}}
+}
+let store=loadStore();
+function migrateStore(){
+  if((store.schemaVersion||0)>=5)return;
+  Object.values(store.weeks||{}).forEach(events=>events.forEach(e=>{if(!e.priority)e.priority=e.track===false?"low":"medium";if(e.deadline===undefined)e.deadline="";}));
+  Object.values(store.progress||{}).forEach(p=>{if(!p.energy)p.energy={};});
+  store.schemaVersion=5;saveStore();
+}
+migrateStore();
+if(!store.progress) store.progress={};
+const PLAN_VERSION=5;
+// Conservamos todas las semanas existentes. Nunca borramos la semana 3–9 de agosto,
+// porque es la referencia que el usuario ha configurado manualmente.
+store.planVersion=PLAN_VERSION;
+if(Array.isArray(store.weeks?.[REFERENCE_WEEK_KEY])){
+  store.weeks[REFERENCE_WEEK_KEY]=ensureSundayGym(store.weeks[REFERENCE_WEEK_KEY]);
+}
+saveStore();
+function getWeekEvents(){
+  const key=isoWeekKey(weekOffset);
+  if(!store.weeks[key]){store.weeks[key]=cloneTemplate();saveStore();}
+  return store.weeks[key];
+}
+function setWeekEvents(evts){
+  store.weeks[isoWeekKey(weekOffset)]=evts; saveStore();
+}
+function saveStore(){localStorage.setItem(STORAGE_KEY,JSON.stringify(store))}
+
+function mondayOfWeek(offset=0){
+  const d=new Date(); d.setHours(12,0,0,0);
+  const jsDay=d.getDay();
+  const diff=(jsDay===0?-6:1-jsDay)+(offset*7);
+  d.setDate(d.getDate()+diff); return d;
+}
+function fmtDate(d){return d.toLocaleDateString("es-ES",{day:"numeric",month:"short"})}
+function renderHeader(){
+  const head=document.getElementById("weekHead");head.innerHTML='<div class="corner"></div>';
+  const mon=mondayOfWeek(weekOffset),sun=new Date(mon);sun.setDate(mon.getDate()+6);
+  document.getElementById("weekLabel").textContent=`${fmtDate(mon)} — ${fmtDate(sun)}`;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon);d.setDate(mon.getDate()+i);
+    const today=new Date(),isToday=d.toDateString()===today.toDateString();
+    const el=document.createElement("div");el.className="day-head"+(isToday?" today":"");
+    el.innerHTML=`<div class="day-name">${DAYS[i]}</div><div class="day-num">${d.getDate()}</div>`;head.appendChild(el)
+  }
+}
+function timeToMin(t){const [h,m]=t.split(":").map(Number);return h*60+m}
+function minToTime(min){
+  min=Math.max(START_HOUR*60,Math.min(END_HOUR*60,min));
+  const h=Math.floor(min/60),m=min%60;return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`
+}
+function escapeHtml(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+function renderCalendar(){
+  const events=getWeekEvents(),cal=document.getElementById("calendar");
+  cal.innerHTML='<div class="time-col" id="timeCol"></div>';
+  const timeCol=document.getElementById("timeCol");
+  for(let h=START_HOUR;h<=END_HOUR;h++){
+    const l=document.createElement("div");l.className="time-label";l.style.top=((h-START_HOUR)*60)+"px";
+    l.textContent=String(h).padStart(2,"0")+":00";timeCol.appendChild(l)
+  }
+  for(let day=0;day<7;day++){
+    const col=document.createElement("div");col.className="day-col";col.dataset.day=day;
+    col.innerHTML='<div class="empty-hint">Doble clic para añadir</div>';
+    col.addEventListener("dblclick",e=>{
+      if(e.target.closest(".event"))return;
+      const rect=col.getBoundingClientRect();let mins=Math.round((e.clientY-rect.top)/15)*15+START_HOUR*60;
+      mins=Math.max(START_HOUR*60,Math.min((END_HOUR-1)*60,mins));openModal(null,day,minToTime(mins),minToTime(mins+60))
+    });
+    col.addEventListener("dragover",e=>e.preventDefault());
+    col.addEventListener("drop",e=>{
+      e.preventDefault();
+      const id=e.dataTransfer.getData("text/plain"),events=getWeekEvents(),ev=events.find(x=>x.id===id);if(!ev)return;
+      const rect=col.getBoundingClientRect();
+      const pointerMinute=(e.clientY-rect.top)+START_HOUR*60;
+      let start=Math.round((pointerMinute-dragGrabOffsetMin)/15)*15;
+      const duration=timeToMin(ev.end)-timeToMin(ev.start);start=Math.max(START_HOUR*60,Math.min(END_HOUR*60-duration,start));
+      ev.day=day;ev.start=minToTime(start);ev.end=minToTime(start+duration);ev.moved=true;setWeekEvents(events);renderCalendar();renderProgress()
+    });
+    cal.appendChild(col)
+  }
+  events.forEach(ev=>{
+    const col=cal.children[ev.day+1];if(!col)return;
+    const s=timeToMin(ev.start),en=timeToMin(ev.end),el=document.createElement("div");
+    el.className=`event c-${ev.type} priority-${ev.priority||"medium"}`;el.draggable=true;
+    el.style.top=((s-START_HOUR*60)*PX_PER_MIN)+"px";el.style.height=Math.max(24,(en-s)*PX_PER_MIN-3)+"px";
+    if(ev.completed){el.classList.add("event-completed");el.style.opacity=".68"}
+    if(ev.cancelled){el.classList.add("event-cancelled");el.style.opacity=".35";el.style.filter="grayscale(.7)"}
+    const deadlineMeta=ev.deadline?new Date(ev.deadline+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"}):"";
+    el.innerHTML=`<div class="ev-title">${escapeHtml(ev.title)}</div><div class="ev-time">${ev.start}–${ev.end}${ev.completed?" · Hecho":""}</div>${deadlineMeta?`<div class="event-meta">Límite ${deadlineMeta}</div>`:""}`;
+    el.addEventListener("click",()=>openModal(ev.id));el.addEventListener("dragstart",e=>{
+      const r=el.getBoundingClientRect();
+      dragGrabOffsetMin=Math.max(0,Math.min(timeToMin(ev.end)-timeToMin(ev.start),e.clientY-r.top));
+      e.dataTransfer.setData("text/plain",ev.id);
+      e.dataTransfer.effectAllowed="move";
+    });
+    col.appendChild(el)
+  })
+}
+function setupDaySelect(){
+  const sel=document.getElementById("fDay");sel.innerHTML="";
+  DAYS.forEach((d,i)=>{const o=document.createElement("option");o.value=i;o.textContent=d;sel.appendChild(o)})
+}
+function updateStatusButtons(status){
+  document.getElementById("fStatus").value=status;
+  document.getElementById("markCompletedBtn").classList.toggle("active",status==="completed");
+  document.getElementById("markPendingBtn").classList.toggle("active",status==="pending");
+  document.getElementById("markCancelledBtn").classList.toggle("active",status==="cancelled");
+  const main=document.getElementById("markCompletedBtn");
+  main.textContent=status==="completed"?"✓ Completado":"✓ Marcar como hecho";
+}
+function setEventStatus(status){
+  if(!editingId)return;
+  const events=getWeekEvents(),ev=events.find(x=>x.id===editingId);if(!ev)return;
+  ev.completed=status==="completed";ev.cancelled=status==="cancelled";
+  if(status==="completed"&&!ev.actualMinutes){
+    ev.actualMinutes=timeToMin(ev.end)-timeToMin(ev.start);
+    document.getElementById("fActual").value=Math.round((ev.actualMinutes/60)*100)/100;
+  }
+  if(status!=="completed") ev.actualMinutes=0;
+  updateStatusButtons(status);setWeekEvents(events);renderCalendar();renderProgress();
+}
+function openModal(id=null,day=0,start="09:00",end="10:00"){
+  editingId=id;const del=document.getElementById("deleteBtn"),events=getWeekEvents();
+  if(id){
+    const ev=events.find(x=>x.id===id);
+    document.getElementById("modalTitle").textContent=ev.title;
+    document.getElementById("summaryBadge").textContent="Qué toca y por qué";
+    document.getElementById("fTitle").value=ev.title;
+    document.getElementById("fAction").value=ev.action||"";
+    document.getElementById("fReason").value=ev.reason||"";
+    document.getElementById("fDay").value=ev.day;document.getElementById("fType").value=ev.type;
+    document.getElementById("fPriority").value=ev.priority||"medium";document.getElementById("fDeadline").value=ev.deadline||"";
+    document.getElementById("fStart").value=ev.start;document.getElementById("fEnd").value=ev.end;
+    document.getElementById("completionField").style.display="block";
+    updateStatusButtons(ev.cancelled?"cancelled":(ev.completed?"completed":"pending"));
+    document.getElementById("fActual").value=ev.actualMinutes?Math.round(ev.actualMinutes/15)/4:"";
+    del.style.visibility="visible"
+  }else{
+    document.getElementById("modalTitle").textContent="Añadir evento";
+    document.getElementById("summaryBadge").textContent="Cambio solo para esta semana";
+    document.getElementById("fTitle").value="";
+    document.getElementById("fAction").value="";
+    document.getElementById("fReason").value="Añadido por una necesidad concreta de esta semana.";
+    document.getElementById("fDay").value=day;document.getElementById("fType").value="work";
+    document.getElementById("fPriority").value="medium";document.getElementById("fDeadline").value="";
+    document.getElementById("fStart").value=start;document.getElementById("fEnd").value=end;
+    document.getElementById("completionField").style.display="none";
+    updateStatusButtons("pending");
+    del.style.visibility="hidden"
+  }
+  document.getElementById("modalBg").style.display="flex";
+}
+function closeModal(){document.getElementById("modalBg").style.display="none"}
+function saveModal(){
+  const title=document.getElementById("fTitle").value.trim(),action=document.getElementById("fAction").value.trim();
+  const reason=document.getElementById("fReason").value.trim(),day=+document.getElementById("fDay").value;
+  const type=document.getElementById("fType").value,priority=document.getElementById("fPriority").value,deadline=document.getElementById("fDeadline").value,start=document.getElementById("fStart").value,end=document.getElementById("fEnd").value;
+  if(!title||!start||!end||timeToMin(end)<=timeToMin(start)){alert("Revisa el título y las horas.");return}
+  const events=getWeekEvents();
+  if(editingId){
+    const ev=events.find(x=>x.id===editingId);
+    const status=document.getElementById("fStatus").value;
+    const actualInput=document.getElementById("fActual").value;
+    const plannedMinutes=timeToMin(end)-timeToMin(start);
+    const actualMinutes=status==="completed"?(actualInput?Math.round(parseFloat(actualInput)*60):plannedMinutes):0;
+    Object.assign(ev,{title,action,reason,day,type,priority,deadline,start,end,completed:status==="completed",cancelled:status==="cancelled",actualMinutes});
+  }
+  else{events.push({id:"e-"+Date.now(),title,action,reason,day,type,priority,deadline,start,end,completed:false,cancelled:false,actualMinutes:0,moved:false})}
+  setWeekEvents(events);closeModal();renderCalendar()
+}
+function deleteCurrent(){
+  if(!editingId)return;
+  setWeekEvents(getWeekEvents().filter(x=>x.id!==editingId));closeModal();renderCalendar()
+}
+setupDaySelect();renderHeader();renderCalendar();
+document.getElementById("prevBtn").onclick=()=>{weekOffset--;renderHeader();renderCalendar()};
+document.getElementById("nextBtn").onclick=()=>{weekOffset++;renderHeader();renderCalendar()};
+document.getElementById("todayBtn").onclick=()=>{weekOffset=0;renderHeader();renderCalendar()};
+document.getElementById("addBtn").onclick=()=>openModal();
+document.getElementById("cancelBtn").onclick=closeModal;document.getElementById("saveBtn").onclick=saveModal;
+document.getElementById("deleteBtn").onclick=deleteCurrent;
+document.getElementById("markCompletedBtn").onclick=()=>setEventStatus("completed");
+document.getElementById("markPendingBtn").onclick=()=>setEventStatus("pending");
+document.getElementById("markCancelledBtn").onclick=()=>setEventStatus("cancelled");
+
+document.getElementById("modalBg").addEventListener("click",e=>{if(e.target.id==="modalBg")closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
+
+function getProgressWeek(){
+  const key=isoWeekKey(weekOffset);
+  if(!store.progress[key]) store.progress[key]={income:0,incomeGoal:500,clients:[],load:null,reflection:"",extraHours:0,energy:{}};
+  if(!store.progress[key].energy)store.progress[key].energy={};
+  return store.progress[key];
+}
+function hoursForType(type,actual=true){
+  return getWeekEvents().filter(e=>e.type===type&&!e.cancelled).reduce((sum,e)=>{
+    const planned=timeToMin(e.end)-timeToMin(e.start);
+    const mins=actual?(e.completed?(e.actualMinutes||planned):0):planned;
+    return sum+mins/60;
+  },0);
+}
+function pct(a,b){return b>0?Math.max(0,Math.min(100,Math.round(a/b*100))):0}
+function fmtH(n){return (Math.round(n*10)/10).toLocaleString('es-ES')+' h'}
+function shortWeekLabel(offset){const m=mondayOfWeek(offset),s=new Date(m);s.setDate(m.getDate()+6);return `${m.getDate()} ${m.toLocaleDateString('es-ES',{month:'short'})}–${s.getDate()} ${s.toLocaleDateString('es-ES',{month:'short'})}`}
+function weekStats(offset=weekOffset){
+  const old=weekOffset;weekOffset=offset;const ev=getWeekEvents(),pr=getProgressWeek();weekOffset=old;
+  const active=ev.filter(e=>!e.cancelled&&e.track!==false),completed=active.filter(e=>e.completed);
+  const c=pct(completed.length,active.length);
+  return {completion:c,load:+pr.load||0,label:shortWeekLabel(offset)};
+}
+
+function dateKeyFromOffset(offset){
+  return isoWeekKey(offset);
+}
+
+function getWeekStatsByKey(key){
+  const events=store.weeks?.[key]||[];
+  const p=store.progress?.[key]||{};
+  const active=events.filter(e=>!e.cancelled&&e.track!==false);
+  const completed=active.filter(e=>e.completed);
+  return {
+    completion:pct(completed.length,active.length),
+    load:+p.load||0,
+    events,
+    progress:p
+  };
+}
+function mondayFromKey(key){
+  const [y,m,d]=key.split("-").map(Number);
+  return new Date(y,m-1,d,12,0,0,0);
+}
+function keyForDate(date){
+  const d=new Date(date);d.setHours(12,0,0,0);
+  const jsDay=d.getDay();
+  d.setDate(d.getDate()+(jsDay===0?-6:1-jsDay));
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function dailyStats(date){
+  const key=keyForDate(date);
+  const st=getWeekStatsByKey(key);
+  const mon=mondayFromKey(key);
+  const idx=Math.round((new Date(date.getFullYear(),date.getMonth(),date.getDate(),12)-mon)/(86400000));
+  const dayEvents=st.events.filter(e=>e.day===idx&&!e.cancelled&&e.track!==false);
+  const done=dayEvents.filter(e=>e.completed);
+  const energy=+(st.progress.energy?.[idx]||0);
+  return {completion:pct(done.length,dayEvents.length),load:energy?energy*2:0};
+}
+function monthAggregate(year,month){
+  let sumC=0,sumL=0,nC=0,nL=0;
+  const days=new Date(year,month+1,0).getDate();
+  for(let d=1;d<=days;d++){
+    const st=dailyStats(new Date(year,month,d,12));
+    if(st.completion||st.load){sumC+=st.completion;nC++;if(st.load){sumL+=st.load;nL++;}}
+  }
+  return {completion:nC?Math.round(sumC/nC):0,load:nL?sumL/nL:0};
+}
+function getTrendMeta(range){
+  return {
+    "7d":{title:"Evolución · últimos 7 días",subtitle:"Cumplimiento diario y energía registrada"},
+    "1m":{title:"Evolución · último mes",subtitle:"Últimas 4 semanas · cumplimiento y carga percibida"},
+    "3m":{title:"Evolución · últimos 3 meses",subtitle:"Últimas 12 semanas · cumplimiento y carga percibida"},
+    "6m":{title:"Evolución · últimos 6 meses",subtitle:"Promedio mensual de cumplimiento y carga"},
+    "1y":{title:"Evolución · último año",subtitle:"Últimos 12 meses · promedio mensual"},
+    "max":{title:"Evolución · Máx.",subtitle:"Todo tu historial disponible desde el primer registro"}
+  }[range]||{title:"Evolución · último mes",subtitle:"Últimas 4 semanas · cumplimiento y carga percibida"};
+}
+function getTrendData(range){
+  const now=mondayOfWeek(weekOffset);
+  const data=[];
+
+  if(range==="7d"){
+    const end=new Date(now); end.setDate(end.getDate()+6);
+    for(let i=6;i>=0;i--){
+      const d=new Date(end); d.setDate(end.getDate()-i);
+      const st=dailyStats(d);
+      data.push({label:d.toLocaleDateString("es-ES",{weekday:"short"}),...st});
+    }
+    return data;
+  }
+
+  if(range==="1m"||range==="3m"){
+    const weeks=range==="1m"?4:12;
+    for(let i=weeks-1;i>=0;i--){
+      const off=weekOffset-i,st=weekStats(off);
+      data.push({label:st.label,completion:st.completion,load:st.load||0});
+    }
+    return data;
+  }
+
+  if(range==="6m"||range==="1y"){
+    const months=range==="6m"?6:12;
+    const anchor=new Date(now.getFullYear(),now.getMonth(),1,12);
+    for(let i=months-1;i>=0;i--){
+      const d=new Date(anchor.getFullYear(),anchor.getMonth()-i,1,12);
+      const st=monthAggregate(d.getFullYear(),d.getMonth());
+      data.push({label:d.toLocaleDateString("es-ES",{month:"short"}),...st});
+    }
+    return data;
+  }
+
+  if(range==="max"){
+    const keys=[...new Set([
+      ...Object.keys(store.weeks||{}),
+      ...Object.keys(store.progress||{})
+    ])].filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
+
+    if(!keys.length){
+      const st=weekStats(weekOffset);
+      return [{label:st.label,completion:st.completion,load:st.load||0}];
+    }
+
+    if(keys.length<=16){
+      keys.forEach(key=>{
+        const st=getWeekStatsByKey(key);
+        const d=mondayFromKey(key);
+        data.push({
+          label:`${d.getDate()} ${d.toLocaleDateString("es-ES",{month:"short"})}`,
+          completion:st.completion,
+          load:st.load||0
+        });
+      });
+    }else{
+      const first=mondayFromKey(keys[0]);
+      const last=mondayFromKey(keys[keys.length-1]);
+      let cursor=new Date(first.getFullYear(),first.getMonth(),1,12);
+      const end=new Date(last.getFullYear(),last.getMonth(),1,12);
+      while(cursor<=end){
+        const st=monthAggregate(cursor.getFullYear(),cursor.getMonth());
+        data.push({
+          label:cursor.toLocaleDateString("es-ES",{month:"short",year:"2-digit"}),
+          ...st
+        });
+        cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1,12);
+      }
+    }
+    return data;
+  }
+
+  return data;
+}
+function renderProgress(){
+  const events=getWeekEvents(),p=getProgressWeek(),active=events.filter(e=>!e.cancelled&&e.track!==false),completed=active.filter(e=>e.completed);
+  const completion=pct(completed.length,active.length);
+  const study=hoursForType('study'),studyPlan=hoursForType('study',false),work=hoursForType('work'),workPlan=hoursForType('work',false);
+  const gymDone=events.filter(e=>e.type==='gym'&&e.completed&&!e.cancelled).length,gymPlan=events.filter(e=>e.type==='gym'&&!e.cancelled).length;
+  document.getElementById('progressWeekLabel').textContent=document.getElementById('weekLabel').textContent;
+  document.getElementById('kpiCompletion').textContent=completion+'%';document.getElementById('kpiCompletionSub').textContent=`${completed.length} / ${active.length} bloques`;
+  document.getElementById('kpiCompletionFill').style.width=completion+'%';
+  document.getElementById('kpiStudy').textContent=fmtH(study);document.getElementById('kpiStudySub').textContent='Objetivo: '+fmtH(studyPlan);document.getElementById('kpiStudyFill').style.width=pct(study,studyPlan)+'%';
+  document.getElementById('kpiWork').textContent=fmtH(work);document.getElementById('kpiWorkSub').textContent='Objetivo: '+fmtH(workPlan);document.getElementById('kpiWorkFill').style.width=pct(work,workPlan)+'%';
+  document.getElementById('kpiIncome').textContent=(+p.income||0).toLocaleString('es-ES')+' €';document.getElementById('kpiIncomeFill').style.width=pct(+p.income||0,+p.incomeGoal||500)+'%';
+  document.getElementById('kpiGym').textContent=`${gymDone}/4`;document.getElementById('kpiGymFill').style.width=pct(gymDone,4)+'%';
+  document.getElementById('kpiLoad').textContent=(p.load||'–')+'/10';document.getElementById('kpiLoadFill').style.width=((+p.load||0)*10)+'%';
+  document.getElementById('sumPlanned').textContent=active.length;document.getElementById('sumCompleted').textContent=completed.length;
+  document.getElementById('sumMoved').textContent=events.filter(e=>e.moved).length;document.getElementById('sumCancelled').textContent=events.filter(e=>e.cancelled).length;
+  document.getElementById('sumExtra').textContent=(+p.extraHours||0).toLocaleString('es-ES')+' h';
+  let perfect=0;for(let d=0;d<7;d++){const de=events.filter(e=>e.day===d&&!e.cancelled&&e.track!==false);if(de.length&&de.every(e=>e.completed))perfect++}document.getElementById('sumPerfectDays').textContent=perfect+'/7';
+  const project=hoursForType('project'),projectPlan=hoursForType('project',false);
+  for(const [id,val] of [['Study',pct(study,studyPlan)],['Work',pct(work,workPlan)],['Gym',pct(gymDone,4)],['Project',pct(project,projectPlan)]]){document.getElementById('bar'+id).style.width=val+'%';document.getElementById('bar'+id+'Text').textContent=val+'%'}
+  const list=document.getElementById('clientsList');list.innerHTML='';(p.clients||[]).forEach(c=>{const r=document.createElement('div');r.className='client-row';r.innerHTML=`<div><strong>${escapeHtml(c.name||'Cliente')}</strong><div class="client-meta">${(+c.hours||0).toLocaleString('es-ES')} h</div></div><strong>${(+c.income||0).toLocaleString('es-ES')} €</strong>`;list.appendChild(r)});if(!(p.clients||[]).length)list.innerHTML='<div class="sub">Todavía no has añadido clientes esta semana.</div>';
+  document.getElementById('hourlyRate').textContent=(work>0?Math.round((+p.income||0)/work):0).toLocaleString('es-ES')+' €';
+  document.getElementById('loadInput').value=p.load||'';document.getElementById('reflectionText').value=p.reflection||'';
+  const energyWrap=document.getElementById('energyDays');energyWrap.innerHTML='';
+  DAYS.forEach((name,d)=>{const box=document.createElement('div');box.className='energy-day';box.innerHTML=`<span>${name}</span><select data-energy-day="${d}"><option value="">–</option>${[1,2,3,4,5].map(v=>`<option value="${v}" ${String(p.energy?.[d]||'')===String(v)?'selected':''}>${v}</option>`).join('')}</select>`;energyWrap.appendChild(box)});
+  energyWrap.querySelectorAll('select').forEach(sel=>sel.onchange=()=>{const pp=getProgressWeek();if(!pp.energy)pp.energy={};const d=sel.dataset.energyDay;if(sel.value)pp.energy[d]=+sel.value;else delete pp.energy[d];saveStore();renderProgress();});
+  const moved=events.filter(e=>e.moved).length,cancelled=events.filter(e=>e.cancelled).length,energyVals=Object.values(p.energy||{}).map(Number).filter(Boolean),avgEnergy=energyVals.length?energyVals.reduce((a,b)=>a+b,0)/energyVals.length:null;
+  const sunday=new Date(mondayOfWeek(weekOffset));sunday.setDate(sunday.getDate()+6);sunday.setHours(23,59,59,999);
+  const urgent=events.filter(e=>e.priority==='high'&&!e.completed&&!e.cancelled&&(!e.deadline||new Date(e.deadline+'T23:59:59')<=sunday));
+  const insights=[];
+  if(completion>=90)insights.push(`<strong>Buen ajuste:</strong> ${completion}% de cumplimiento; el plan está cerca de tu capacidad real.`);else if(completion>=75)insights.push(`<strong>Semana razonable:</strong> ${completion}% de cumplimiento. Revisa sobre todo lo movido o pendiente.`);else insights.push(`<strong>Agenda exigente:</strong> ${completion}% de cumplimiento. Conviene redistribuir carga la próxima semana.`);
+  if(studyPlan>0&&study<studyPlan*.85)insights.push(`<strong>Estudio:</strong> faltan ${fmtH(Math.max(0,studyPlan-study))} respecto al plan.`);else if(studyPlan>0)insights.push(`<strong>Estudio:</strong> buen ritmo: ${fmtH(study)} de ${fmtH(studyPlan)}.`);
+  if(workPlan>0&&work<workPlan*.8)insights.push(`<strong>Trabajo:</strong> ${fmtH(work)} de ${fmtH(workPlan)}; revisa si los bloques de clientes son realistas.`);
+  if(gymDone<4)insights.push(`<strong>Gym:</strong> llevas ${gymDone}/4. Te faltan ${4-gymDone} sesión${4-gymDone===1?'':'es'}.`);else insights.push(`<strong>Gym:</strong> objetivo completo: 4/4 sesiones.`);
+  if(avgEnergy!==null&&avgEnergy<3)insights.push(`<strong>Energía:</strong> media ${avgEnergy.toFixed(1)}/5. Protege sueño y recuperación antes de añadir carga.`);else if(avgEnergy!==null&&avgEnergy>=4&&completion>=80)insights.push(`<strong>Energía:</strong> media ${avgEnergy.toFixed(1)}/5 con buen cumplimiento; el sistema parece sostenible.`);
+  if(moved>=4||cancelled>=2)insights.push(`<strong>Estabilidad:</strong> ${moved} movidos y ${cancelled} no realizados; hay fricción entre plan y realidad.`);
+  if(urgent.length)insights.push(`<strong>Prioridad:</strong> ${urgent.length} evento${urgent.length===1?'':'s'} de prioridad alta pendiente${urgent.length===1?'':'s'}.`);
+  document.getElementById('autoSummary').innerHTML=insights.slice(0,6).map(x=>`<div class="insight-line">${x}</div>`).join('');
+  const trend=getTrendData(trendRange);
+  const count=Math.max(1,trend.length-1);
+  const ptsC=trend.map((st,i)=>`${i*(700/count)},${245-(st.completion/100*225+10)}`).join(' ');
+  const ptsL=trend.map((st,i)=>`${i*(700/count)},${245-((st.load||0)/10*225+10)}`).join(' ');
+  document.getElementById('completionLine').setAttribute('points',ptsC);
+  document.getElementById('loadLine').setAttribute('points',ptsL);
+  document.getElementById('chartLabels').innerHTML=trend.map(s=>`<span>${s.label}</span>`).join('');
+  const meta=getTrendMeta(trendRange);
+  document.getElementById('trendTitle').textContent=meta.title;
+  document.getElementById('trendSubtitle').textContent=meta.subtitle;
+}
+function showView(which){
+  const schedule=which==='schedule';document.getElementById('scheduleView').classList.toggle('active',schedule);document.getElementById('progressView').classList.toggle('active',!schedule);
+  document.getElementById('tabSchedule').classList.toggle('active',schedule);document.getElementById('tabProgress').classList.toggle('active',!schedule);if(!schedule)renderProgress();
+}
+document.getElementById('tabSchedule').onclick=()=>showView('schedule');document.getElementById('tabProgress').onclick=()=>showView('progress');
+document.querySelectorAll('#trendRange button').forEach(btn=>btn.addEventListener('click',()=>{
+  trendRange=btn.dataset.range;
+  document.querySelectorAll('#trendRange button').forEach(b=>b.classList.toggle('active',b===btn));
+  renderProgress();
+}));
+document.getElementById('progressPrevBtn').onclick=()=>{weekOffset--;renderHeader();renderCalendar();renderProgress()};document.getElementById('progressNextBtn').onclick=()=>{weekOffset++;renderHeader();renderCalendar();renderProgress()};document.getElementById('progressTodayBtn').onclick=()=>{weekOffset=0;renderHeader();renderCalendar();renderProgress()};
+document.getElementById('saveReflectionBtn').onclick=()=>{const p=getProgressWeek();p.load=Math.max(1,Math.min(10,+document.getElementById('loadInput').value||0))||null;p.reflection=document.getElementById('reflectionText').value.trim();saveStore();renderProgress()};
+document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek();const income=prompt('Ingresos totales de esta semana (€):',p.income||0);if(income===null)return;const goal=prompt('Objetivo de ingresos (€):',p.incomeGoal||500);if(goal===null)return;const extra=prompt('Horas extra no planificadas:',p.extraHours||0);if(extra===null)return;const raw=prompt('Clientes: escribe Nombre=Ingresos=Horas separados por coma. Ej: Cliente A=200=3, Cliente B=150=2', (p.clients||[]).map(c=>`${c.name}=${c.income}=${c.hours}`).join(', '));p.income=Math.max(0,+income||0);p.incomeGoal=Math.max(1,+goal||500);p.extraHours=Math.max(0,+extra||0);p.clients=(raw||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [name,inc,h]=x.split('=');return{name:(name||'Cliente').trim(),income:+inc||0,hours:+h||0}});saveStore();renderProgress()};
+
+</script>
+</body>
+</html>
