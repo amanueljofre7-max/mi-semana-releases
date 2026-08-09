@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Mi semana</title>
+<meta name="mi-semana-version" content="6" />
 <style>
 :root{
   --bg:#f5f5f7; --panel:rgba(255,255,255,.9); --text:#1d1d1f; --muted:#6e6e73;
@@ -168,9 +169,32 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
 .sync-pill.busy .dot{background:#ff9f0a}
 .sync-pill.err .dot{background:#ff3b30}
 
+
+.auth-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(245,245,247,.84);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px)}
+.auth-gate.hidden{display:none}.auth-card{width:min(430px,94vw);background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.08);border-radius:28px;padding:28px;box-shadow:0 28px 90px rgba(0,0,0,.16)}
+.auth-mark{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;margin-bottom:18px;background:#1d1d1f;color:#fff;font-size:21px;font-weight:800}.auth-card h2{font-size:28px;letter-spacing:-.7px;margin:0 0 7px}.auth-card p{margin:0 0 18px;color:var(--muted);line-height:1.45;font-size:14px}.auth-field{margin:11px 0}.auth-field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px}.auth-field input{width:100%;border:1px solid var(--line);border-radius:13px;padding:12px 13px;background:#fff;font:inherit;outline:none}.auth-field input:focus{border-color:#0071e3;box-shadow:0 0 0 3px rgba(0,113,227,.12)}
+.auth-primary{width:100%;margin-top:8px;background:#0071e3!important;color:white!important;box-shadow:none!important}.auth-secondary{width:100%;margin-top:8px;background:#fff!important}.auth-status{min-height:19px;margin-top:12px!important;font-size:12px!important}.auth-status.err{color:#c62828}.auth-status.ok{color:#248a3d}.auth-small{font-size:11px!important;margin-top:14px!important}.account-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.78);font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;margin-left:7px}
+@media(max-width:650px){.app{padding:10px}.view-tabs{position:sticky;top:0;z-index:8;background:rgba(245,245,247,.88);backdrop-filter:blur(18px);padding:8px 0}.week-card{border-radius:16px}.calendar-wrap{overflow:auto}.calendar{min-width:980px}.topbar{gap:10px}.title-wrap h1{font-size:27px}.controls button{padding:9px 12px}.auth-card{padding:23px;border-radius:24px}}
+
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-mark">M</div>
+    <h2>Tu semana, en todos tus dispositivos.</h2>
+    <p id="authIntro">Crea o inicia sesión con tu cuenta. Tu calendario actual se conservará y se copiará automáticamente a la cuenta la primera vez.</p>
+    <div class="auth-field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" value="amanueljofre7@gmail.com" /></div>
+    <div class="auth-field"><label>Contraseña</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" placeholder="Mínimo 8 caracteres" /></div>
+    <button class="auth-primary" id="authLoginBtn" type="button">Entrar</button>
+    <button class="auth-secondary" id="authCreateBtn" type="button">Crear cuenta</button>
+    <p class="auth-status" id="authStatus"></p>
+    <p class="auth-small">La primera migración hace una copia del estado local y del estado sincronizado antes de cambiar de cuenta.</p>
+  </div>
+</div>
+
 <div class="app">
   <div class="view-tabs">
     <button class="view-tab active" id="tabSchedule">Horario</button>
@@ -180,6 +204,7 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
     <button class="sync-pill" id="syncPill" type="button" title="Sincronización">
       <span class="dot"></span><span id="syncText">Local</span>
     </button>
+    <button class="account-pill" id="accountPill" type="button" title="Cuenta" style="display:none"><span>Cuenta</span><span id="accountText"></span></button>
   </div>
   <div class="view active" id="scheduleView">
   <div class="topbar">
@@ -604,9 +629,16 @@ function renderCalendar(){
       e.preventDefault();
       const id=e.dataTransfer.getData("text/plain"),events=getWeekEvents(),ev=events.find(x=>x.id===id);if(!ev)return;
       const rect=col.getBoundingClientRect();
-      const pointerMinute=(e.clientY-rect.top)+START_HOUR*60;
-      let start=Math.round((pointerMinute-dragGrabOffsetMin)/15)*15;
-      const duration=timeToMin(ev.end)-timeToMin(ev.start);start=Math.max(START_HOUR*60,Math.min(END_HOUR*60-duration,start));
+      // Convert screen pixels to calendar minutes using the actual rendered
+      // column height. This keeps drag/drop accurate even when the window,
+      // display scaling or Electron zoom changes the calendar size.
+      const minutesVisible=(END_HOUR-START_HOUR)*60;
+      const pxPerMinute=rect.height/minutesVisible;
+      const pointerMinute=((e.clientY-rect.top)/pxPerMinute)+START_HOUR*60;
+      const grabOffsetMinutes=dragGrabOffsetMin/PX_PER_MIN;
+      let start=Math.round((pointerMinute-grabOffsetMinutes)/15)*15;
+      const duration=timeToMin(ev.end)-timeToMin(ev.start);
+      start=Math.max(START_HOUR*60,Math.min(END_HOUR*60-duration,start));
       ev.day=day;ev.start=minToTime(start);ev.end=minToTime(start+duration);ev.moved=true;setWeekEvents(events);renderCalendar();renderProgress()
     });
     cal.appendChild(col)
@@ -622,7 +654,8 @@ function renderCalendar(){
     el.innerHTML=`<div class="ev-title">${escapeHtml(ev.title)}</div><div class="ev-time">${ev.start}–${ev.end}${ev.completed?" · Hecho":""}</div>${deadlineMeta?`<div class="event-meta">Límite ${deadlineMeta}</div>`:""}`;
     el.addEventListener("click",()=>openModal(ev.id));el.addEventListener("dragstart",e=>{
       const r=el.getBoundingClientRect();
-      dragGrabOffsetMin=Math.max(0,Math.min(timeToMin(ev.end)-timeToMin(ev.start),e.clientY-r.top));
+      // Store the grab point in rendered pixels; drop converts it back to minutes.
+      dragGrabOffsetMin=Math.max(0,Math.min(r.height,e.clientY-r.top))*PX_PER_MIN;
       e.dataTransfer.setData("text/plain",ev.id);
       e.dataTransfer.effectAllowed="move";
     });
@@ -703,17 +736,7 @@ function saveModal(){
 }
 function deleteCurrent(){
   if(!editingId)return;
-  const id=editingId;
-  const current=getWeekEvents();
-  const exists=current.some(x=>x.id===id);
-  if(!exists)return;
-
-  const next=current.filter(x=>x.id!==id);
-  editingId=null;
-  setWeekEvents(next);
-  closeModal();
-  renderCalendar();
-  if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
+  setWeekEvents(getWeekEvents().filter(x=>x.id!==editingId));closeModal();renderCalendar()
 }
 setupDaySelect();renderHeader();renderCalendar();
 document.getElementById("prevBtn").onclick=()=>{weekOffset--;renderHeader();renderCalendar()};
@@ -945,171 +968,107 @@ document.getElementById('saveReflectionBtn').onclick=()=>{const p=getProgressWee
 document.getElementById('editFinanceBtn').onclick=()=>{const p=getProgressWeek();const income=prompt('Ingresos totales de esta semana (€):',p.income||0);if(income===null)return;const goal=prompt('Objetivo de ingresos (€):',p.incomeGoal||500);if(goal===null)return;const extra=prompt('Horas extra no planificadas:',p.extraHours||0);if(extra===null)return;const raw=prompt('Clientes: escribe Nombre=Ingresos=Horas separados por coma. Ej: Cliente A=200=3, Cliente B=150=2', (p.clients||[]).map(c=>`${c.name}=${c.income}=${c.hours}`).join(', '));p.income=Math.max(0,+income||0);p.incomeGoal=Math.max(1,+goal||500);p.extraHours=Math.max(0,+extra||0);p.clients=(raw||'').split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [name,inc,h]=x.split('=');return{name:(name||'Cliente').trim(),income:+inc||0,hours:+h||0}});saveStore();renderProgress()};
 
 
-// --- Mi Semana Sync v7: timeout + retry + local-first ---
+// --- Mi Semana Cloud v6: permanent account + Mac/iPhone sync ---
 (function(){
-  if(!window.miSemanaDesktop?.syncPull || !window.miSemanaDesktop?.syncPush) return;
+  const SUPABASE_URL="https://aingfiftqljxskdcnjhz.supabase.co";
+  const SUPABASE_KEY="sb_publishable_a_-6Szhcd85-vQ-VjG3F7A_Hanezzld";
+  const sb=(window.supabase&&window.supabase.createClient)
+    ? window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
+    : null;
+  const pill=()=>document.getElementById("syncPill"), text=()=>document.getElementById("syncText");
+  const gate=()=>document.getElementById("authGate"), status=()=>document.getElementById("authStatus");
+  let syncTimer=null, applyingRemote=false, legacySnapshot=null, currentUser=null, migrationDone=false;
 
-  const META_KEY="miSemanaSyncMeta";
-  const pill=()=>document.getElementById("syncPill");
-  const text=()=>document.getElementById("syncText");
-  let timer=null;
-  let applyingRemote=false;
-  let lastError="";
+  function setStatus(kind,label){const p=pill(),t=text();if(!p||!t)return;p.classList.remove("ok","busy","err");if(kind)p.classList.add(kind);t.textContent=label}
+  function authMsg(msg,kind=""){const s=status();if(!s)return;s.textContent=msg;s.className="auth-status"+(kind?" "+kind:"")}
+  function makeSnapshot(){return {schema:1,updatedAt:new Date().toISOString(),store:JSON.parse(JSON.stringify(store))}}
+  function setAccount(user){currentUser=user||null;const ap=document.getElementById("accountPill"),at=document.getElementById("accountText");if(user){if(ap)ap.style.display="inline-flex";if(at)at.textContent=user.email||"Conectada";gate()?.classList.add("hidden")}else{if(ap)ap.style.display="none";gate()?.classList.remove("hidden")}}
 
-  function readMeta(){
-    try{return JSON.parse(localStorage.getItem(META_KEY)||"{}")}
-    catch{return {}}
-  }
-  function writeMeta(meta){
-    localStorage.setItem(META_KEY,JSON.stringify(meta));
-  }
-  function setStatus(kind,label,error=""){
-    const p=pill(),t=text();
-    lastError=error||"";
-    if(!p||!t)return;
-    p.classList.remove("ok","busy","err");
-    if(kind)p.classList.add(kind);
-    t.textContent=label;
-    p.title=lastError
-      ? "Haz clic para reintentar.\n\n"+lastError
-      : "Haz clic para sincronizar ahora";
-  }
-  function snapshot(updatedAt){
-    return {
-      schema:1,
-      updatedAt,
-      store:JSON.parse(JSON.stringify(store))
-    };
-  }
-  function withTimeout(promise,ms,label){
-    return Promise.race([
-      promise,
-      new Promise((_,reject)=>setTimeout(
-        ()=>reject(new Error(label||"Tiempo de espera agotado")),
-        ms
-      ))
-    ]);
+  async function captureLegacy(){
+    if(legacySnapshot) return legacySnapshot;
+    const local=makeSnapshot();
+    if(window.miSemanaDesktop?.syncPush){try{await window.miSemanaDesktop.syncPush(local)}catch(e){}}
+    if(window.miSemanaDesktop?.syncPull){try{const r=await window.miSemanaDesktop.syncPull();if(r?.ok&&r.data?.store) legacySnapshot=r.data}catch(e){}}
+    if(!legacySnapshot) legacySnapshot=local;
+    return legacySnapshot;
   }
 
-  async function pushNow(){
-    if(applyingRemote)return false;
-
-    const meta=readMeta();
-    const updatedAt=meta.localUpdatedAt||new Date().toISOString();
-    setStatus("busy","Guardando…");
-
-    try{
-      const result=await withTimeout(
-        window.miSemanaDesktop.syncPush(snapshot(updatedAt)),
-        10000,
-        "GitHub no respondió en 10 segundos"
-      );
-
-      if(result?.ok){
-        writeMeta({
-          localUpdatedAt:updatedAt,
-          remoteUpdatedAt:updatedAt,
-          dirty:false,
-          lastSyncedAt:result.syncedAt||new Date().toISOString()
-        });
-        setStatus("ok","Sincronizado");
-        return true;
-      }
-
-      const err=result?.error||"No se pudo guardar en GitHub";
-      writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:err});
-      setStatus("err","Pendiente",err);
-      return false;
-
-    }catch(e){
-      const err=e?.message||"Tiempo de espera agotado";
-      writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true,lastError:err});
-      setStatus("err","Pendiente",err);
-      return false;
-    }
-  }
-
-  window.miSemanaSyncSchedule=function(){
-    if(applyingRemote)return;
-    const updatedAt=new Date().toISOString();
-    const meta=readMeta();
-    writeMeta({...meta,localUpdatedAt:updatedAt,dirty:true});
-    clearTimeout(timer);
-    timer=setTimeout(pushNow,900);
-  };
-
-  async function pullNow(){
-    let meta=readMeta();
-
-    if(meta.dirty){
-      const pushed=await pushNow();
-      if(!pushed)return;
-      meta=readMeta();
-    }
-
+  async function directPull(){
+    if(!sb||!currentUser)return {ok:false};
     setStatus("busy","Sincronizando…");
-
-    try{
-      const result=await withTimeout(
-        window.miSemanaDesktop.syncPull(),
-        10000,
-        "GitHub no respondió en 10 segundos"
-      );
-
-      if(!result?.ok){
-        const err=result?.error||"No se pudo leer GitHub";
-        setStatus("err","Pendiente",err);
-        return;
-      }
-
-      const remote=result.data;
-      if(!remote?.store){
-        setStatus("ok","Conectado");
-        return;
-      }
-
-      const remoteTime=remote.updatedAt||"";
-      const localTime=meta.localUpdatedAt||meta.remoteUpdatedAt||"";
-
-      if(remoteTime && (!localTime || remoteTime>localTime)){
-        applyingRemote=true;
-        store=remote.store;
-        localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
-        writeMeta({
-          localUpdatedAt:remoteTime,
-          remoteUpdatedAt:remoteTime,
-          dirty:false,
-          lastSyncedAt:new Date().toISOString()
-        });
-        applyingRemote=false;
-
-        renderHeader();
-        renderCalendar();
-        if(document.getElementById("progressView")?.classList.contains("active")) renderProgress();
-        setStatus("ok","Actualizado");
-        return;
-      }
-
-      setStatus("ok","Sincronizado");
-
-    }catch(e){
-      setStatus("err","Pendiente",e?.message||"Tiempo de espera agotado");
+    const {data,error}=await sb.from("mi_semana_state").select("payload,client_updated_at,server_updated_at").eq("user_id",currentUser.id).maybeSingle();
+    if(error){setStatus("err","Sin conexión");return {ok:false,error}}
+    if(!data?.payload?.store){setStatus("ok","Conectado");return {ok:true,data:null}}
+    const remote=data.payload;
+    let localUpdated="";try{localUpdated=JSON.parse(localStorage.getItem("miSemanaSyncMeta")||"{}").updatedAt||""}catch{}
+    if(remote.updatedAt&&(!localUpdated||remote.updatedAt>localUpdated)){
+      applyingRemote=true;store=remote.store;localStorage.setItem(STORAGE_KEY,JSON.stringify(store));localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:remote.updatedAt}));applyingRemote=false;
+      renderHeader();renderCalendar();if(document.getElementById("progressView")?.classList.contains("active"))renderProgress();setStatus("ok","Actualizado");return {ok:true,data:remote};
     }
+    setStatus("ok","Sincronizado");return {ok:true,data:remote};
   }
 
-  window.addEventListener("DOMContentLoaded",()=>{
-    pill()?.addEventListener("click",async()=>{
-      setStatus("busy","Reintentando…");
-      await pullNow();
-    });
+  async function directPush(snapshot=makeSnapshot()){
+    if(applyingRemote||!sb||!currentUser)return {ok:false};
+    setStatus("busy","Guardando…");
+    const {error}=await sb.from("mi_semana_state").upsert({user_id:currentUser.id,payload:snapshot,client_updated_at:snapshot.updatedAt},{onConflict:"user_id"});
+    if(error){setStatus("err","Pendiente");return {ok:false,error}}
+    localStorage.setItem("miSemanaSyncMeta",JSON.stringify({updatedAt:snapshot.updatedAt}));setStatus("ok","Sincronizado");return {ok:true};
+  }
 
-    // Nunca bloquear el arranque: primer intento en segundo plano.
-    setTimeout(()=>{
-      const meta=readMeta();
-      if(meta.dirty) setStatus("err","Pendiente",meta.lastError||"Hay cambios locales por sincronizar");
-      pullNow();
-    },500);
-  });
+  window.miSemanaSyncSchedule=function(){if(applyingRemote||!currentUser)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>directPush(),900)};
+
+  async function migrateIntoAccount(){
+    if(migrationDone||!currentUser)return;
+    migrationDone=true;setStatus("busy","Migrando…");
+    const legacy=await captureLegacy();
+    const {data,error}=await sb.from("mi_semana_state").select("payload").eq("user_id",currentUser.id).maybeSingle();
+    if(error){migrationDone=false;setStatus("err","Pendiente");return}
+    if(!data?.payload?.store){
+      const source=legacy?.store?legacy:makeSnapshot();
+      const migrated={...source,updatedAt:new Date().toISOString(),migratedFrom:"legacy-anonymous-mac"};
+      const r=await directPush(migrated);if(!r.ok){migrationDone=false;return}
+      applyingRemote=true;store=migrated.store;localStorage.setItem(STORAGE_KEY,JSON.stringify(store));applyingRemote=false;
+    }else await directPull();
+    setStatus("ok","Sincronizado");
+  }
+
+  async function login(){
+    if(!sb)return authMsg("No se ha podido cargar la conexión segura.","err");
+    const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value;
+    if(!email||password.length<8)return authMsg("Introduce tu email y una contraseña de al menos 8 caracteres.","err");
+    authMsg("Entrando…");await captureLegacy();
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error)return authMsg(error.message.includes("Email not confirmed")?"Confirma primero el email desde el mensaje de Supabase y vuelve a pulsar Entrar.":"No se ha podido entrar: "+error.message,"err");
+    setAccount(data.user);await migrateIntoAccount();authMsg("");
+  }
+
+  async function createAccount(){
+    if(!sb)return authMsg("No se ha podido cargar la conexión segura.","err");
+    const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value;
+    if(!email||password.length<8)return authMsg("Introduce tu email y una contraseña de al menos 8 caracteres.","err");
+    authMsg("Protegiendo tus datos y creando la cuenta…");await captureLegacy();
+    const {data,error}=await sb.auth.signUp({email,password,options:{data:{app:"mi-semana"}}});
+    if(error)return authMsg("No se ha podido crear la cuenta: "+error.message,"err");
+    if(data.session&&data.user){setAccount(data.user);await migrateIntoAccount();authMsg("Cuenta creada y datos migrados.","ok")}
+    else authMsg("Cuenta creada. Abre el email de confirmación de Supabase; después vuelve aquí y pulsa Entrar.","ok");
+  }
+
+  async function boot(){
+    if(!sb){authMsg("No se ha podido cargar Supabase.","err");return}
+    setStatus("busy","Preparando…");
+    await captureLegacy();
+    const {data:{session}}=await sb.auth.getSession();
+    if(session?.user){setAccount(session.user);await migrateIntoAccount();await directPull()}else{setAccount(null);setStatus("ok","Datos protegidos")}
+    sb.auth.onAuthStateChange(async(evt,session)=>{if(session?.user){setAccount(session.user);await migrateIntoAccount()}else if(evt==="SIGNED_OUT")setAccount(null)});
+  }
+
+  document.getElementById("authLoginBtn")?.addEventListener("click",login);
+  document.getElementById("authCreateBtn")?.addEventListener("click",createAccount);
+  document.getElementById("authPassword")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
+  pill()?.addEventListener("click",directPull);
+  document.getElementById("accountPill")?.addEventListener("click",async()=>{if(confirm("¿Cerrar sesión en este dispositivo?")){await sb.auth.signOut();location.reload()}});
+  window.addEventListener("DOMContentLoaded",boot);
 })();
 
 </script>

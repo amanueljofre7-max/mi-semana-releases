@@ -1,6 +1,6 @@
 {
-  "version": 7,
+  "version": 6,
   "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "815032db657b7fe576d9ca79c3741f05e2fdb4aa8a943f9cdb8c7b86e0dc1299",
-  "notes": "v7: timeout de sincronización, Pendiente automático y reintento manual"
+  "sha256": "70497cc05272b8e8d814fb5598b717918a056f06aa0b13d35161f69189482ff0",
+  "notes": "v6: cuenta permanente y sincronización Mac + iPhone con migración segura"
 }
