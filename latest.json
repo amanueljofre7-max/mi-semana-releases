@@ -1,6 +1,6 @@
 {
-  "version": 9,
+  "version": 10,
   "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "ececf60e3b172d24ee1bfda5275951734c8244eea1f6a0c69e206d1112f05096",
-  "notes": "Calendario ampliado: visible desde las 06:00"
+  "sha256": "0b38318499f94be7a580043ab1086596cc20b4509a3f8953f71942a0d8ea43a4",
+  "notes": "Calendario ampliado: visible de 06:00 a 02:00"
 }
