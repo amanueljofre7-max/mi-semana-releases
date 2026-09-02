@@ -46,10 +46,10 @@ button.primary{background:var(--blue);color:#fff;box-shadow:none}
 }
 .calendar-wrap{overflow:auto;max-height:calc(100vh - 185px)}
 .calendar{position:relative;display:grid;grid-template-columns:72px repeat(7,1fr);min-width:1000px}
-.time-col{position:relative;height:960px;border-right:1px solid var(--line);background:rgba(255,255,255,.5)}
+.time-col{position:relative;height:1080px;border-right:1px solid var(--line);background:rgba(255,255,255,.5)}
 .time-label{position:absolute;right:10px;transform:translateY(-8px);color:#86868b;font-size:11px}
 .day-col{
-  position:relative;height:960px;border-right:1px solid var(--line);
+  position:relative;height:1080px;border-right:1px solid var(--line);
   background-image:linear-gradient(to bottom,transparent 59px,rgba(210,210,215,.85) 60px);background-size:100% 60px
 }
 .day-col:last-child{border-right:none}
@@ -394,7 +394,7 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
 
 <script>
 const DAYS=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-const START_HOUR=8,END_HOUR=24,PX_PER_MIN=1;
+const START_HOUR=6,END_HOUR=24,PX_PER_MIN=1;
 const STORAGE_KEY="weeklyPlannerApple_v3";
 let weekOffset=0, editingId=null;
 let trendRange="1m";
