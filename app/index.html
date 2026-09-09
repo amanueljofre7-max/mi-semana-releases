@@ -179,7 +179,7 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
 
 /* Responsive presentation only: the desktop week and stored data are unchanged. */
 .mobile-day-label,.mobile-help{display:none}
-@media (max-width:760px), (max-width:900px) and (pointer:coarse){
+@media (max-width:900px){
   .app{width:100%;padding:12px; padding-bottom:max(20px,env(safe-area-inset-bottom))}
   .app,.view,.topbar,.controls,.progress-card,.metric-card,.field{min-width:0}
   .view-tabs{position:sticky;top:0;z-index:8;background:rgba(245,245,247,.94);padding:8px 0;gap:8px;margin-bottom:12px;overflow:visible}
@@ -208,9 +208,10 @@ textarea{min-height:84px;resize:vertical;line-height:1.4}
   .day-col{display:none;min-width:0;border-right:0}
   .day-col.mobile-selected{display:block}
   .time-label{right:6px;font-size:10px}
-  .event{left:5px;right:5px;cursor:pointer;padding:5px 8px;touch-action:pan-y}
+  .event{left:5px;right:5px;cursor:pointer;padding:5px 8px;touch-action:pan-y;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px;align-content:start;top:var(--mobile-top)!important;height:var(--mobile-height)!important}
   .event .ev-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px}
-  .event .ev-time{font-size:12px}
+  .event .ev-time{font-size:11px;margin-top:0;padding-right:12px;line-height:15px}
+  .event .event-meta{grid-column:1/-1}
   .empty-hint{display:none}
   .desktop-help{display:none}
   .mobile-help{display:block;line-height:1.5}
@@ -656,7 +657,7 @@ function mondayOfWeek(offset=0){
   d.setDate(d.getDate()+diff); return d;
 }
 function fmtDate(d){return d.toLocaleDateString("es-ES",{day:"numeric",month:"short"})}
-const mobileLayout=window.matchMedia("(max-width:760px), (max-width:900px) and (pointer:coarse)");
+const mobileLayout=window.matchMedia("(max-width:900px)");
 let mobileDay=(new Date().getDay()+6)%7;
 function selectMobileDay(day){
   mobileDay=day;
@@ -735,6 +736,12 @@ function renderCalendar(){
     const s=timeToMin(ev.start),en=timeToMin(ev.end),el=document.createElement("div");
     el.className=`event c-${ev.type} priority-${ev.priority||"medium"}`;el.draggable=true;
     el.style.top=((s-START_HOUR*60)*PX_PER_MIN)+"px";el.style.height=Math.max(24,(en-s)*PX_PER_MIN-3)+"px";
+    // The mobile timeline continues past midnight through 02:00.
+    const mobileStart=s<START_HOUR*60?s+1440:s;
+    let mobileEnd=en<START_HOUR*60?en+1440:en;
+    if(mobileEnd<mobileStart)mobileEnd+=1440;
+    el.style.setProperty("--mobile-top",((mobileStart-START_HOUR*60)*PX_PER_MIN)+"px");
+    el.style.setProperty("--mobile-height",Math.max(24,(mobileEnd-mobileStart)*PX_PER_MIN-3)+"px");
     if(ev.completed){el.classList.add("event-completed");el.style.opacity=".68"}
     if(ev.cancelled){el.classList.add("event-cancelled");el.style.opacity=".35";el.style.filter="grayscale(.7)"}
     const deadlineMeta=ev.deadline?new Date(ev.deadline+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"}):"";
