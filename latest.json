@@ -1,6 +1,6 @@
 {
-  "version": 10,
-  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/main/app/index.html",
-  "sha256": "0b38318499f94be7a580043ab1086596cc20b4509a3f8953f71942a0d8ea43a4",
-  "notes": "Calendario ampliado: visible de 06:00 a 02:00"
+  "version": 11,
+  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/c8a1f1726d883725bcde29c7dfbc55bc134ee1e4/app/index.html",
+  "sha256": "404ad1a189f6c864ef842115d1f61457cc33ea096abe45965c4ce6f7851fb6e1",
+  "notes": "Vista adaptable: día completo en móvil, semana completa en Mac"
 }
