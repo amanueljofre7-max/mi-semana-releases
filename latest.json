@@ -1,6 +1,6 @@
 {
-  "version": 11,
-  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/c8a1f1726d883725bcde29c7dfbc55bc134ee1e4/app/index.html",
-  "sha256": "404ad1a189f6c864ef842115d1f61457cc33ea096abe45965c4ce6f7851fb6e1",
-  "notes": "Vista adaptable: día completo en móvil, semana completa en Mac"
+  "version": 12,
+  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/599fd5c43ad8a58d969da8172678791638dc1497/app/index.html",
+  "sha256": "e86db5c8e49e3d20939a94cf60c531ed195f5e0c65919b1a2af3e2780de0a983",
+  "notes": "Línea azul de hora actual en el día de hoy"
 }
