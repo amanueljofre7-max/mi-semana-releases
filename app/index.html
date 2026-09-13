@@ -57,6 +57,19 @@ button.primary{background:var(--blue);color:#fff;box-shadow:none}
   content:"";position:absolute;inset:0;background-image:linear-gradient(to bottom,transparent 29px,rgba(210,210,215,.35) 30px);
   background-size:100% 60px;pointer-events:none
 }
+.current-time-line{
+  position:absolute;left:0;right:0;height:2px;background:var(--blue);z-index:4;
+  pointer-events:none;box-shadow:0 1px 3px rgba(0,113,227,.22)
+}
+.current-time-line::before{
+  content:"";position:absolute;left:-4px;top:50%;width:8px;height:8px;
+  transform:translateY(-50%);border-radius:50%;background:var(--blue)
+}
+.current-time-label{
+  position:absolute;left:7px;top:50%;transform:translateY(-50%);padding:2px 6px;
+  border-radius:999px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;
+  line-height:15px;font-variant-numeric:tabular-nums;box-shadow:0 2px 7px rgba(0,113,227,.24)
+}
 .event{
   position:absolute;left:7px;right:7px;border-radius:12px;padding:8px 9px;font-size:12px;overflow:hidden;
   cursor:grab;z-index:2;border:1px solid rgba(0,0,0,.06);box-shadow:0 4px 10px rgba(0,0,0,.06);user-select:none
@@ -696,6 +709,22 @@ function minToTime(min){
   const h=Math.floor(min/60),m=min%60;return `${String(h%24).padStart(2,"0")}:${String(m).padStart(2,"0")}`
 }
 function escapeHtml(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+function updateCurrentTimeIndicator(){
+  document.querySelectorAll(".current-time-line").forEach(el=>el.remove());
+  if(weekOffset!==0)return;
+  const now=new Date(),hour=now.getHours(),minute=now.getMinutes();
+  if(hour>=END_HOUR-24&&hour<START_HOUR)return;
+  const timelineHour=hour<START_HOUR?hour+24:hour;
+  const top=((timelineHour-START_HOUR)*60+minute)*PX_PER_MIN;
+  if(top<0||top>=(END_HOUR-START_HOUR)*60)return;
+  const day=(now.getDay()+6)%7,col=document.querySelector(`.day-col[data-day="${day}"]`);
+  if(!col)return;
+  const line=document.createElement("div");line.className="current-time-line";line.style.top=top+"px";
+  line.setAttribute("aria-hidden","true");
+  const label=document.createElement("span");label.className="current-time-label";
+  label.textContent=`${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+  line.appendChild(label);col.appendChild(line);
+}
 function renderCalendar(){
   const events=getWeekEvents(),cal=document.getElementById("calendar");
   cal.innerHTML='<div class="time-col" id="timeCol"></div>';
@@ -756,6 +785,7 @@ function renderCalendar(){
     col.appendChild(el)
   });
   updateMobileDay();
+  updateCurrentTimeIndicator();
 }
 function setupDaySelect(){
   const sel=document.getElementById("fDay");sel.innerHTML="";
@@ -834,6 +864,8 @@ function deleteCurrent(){
   setWeekEvents(getWeekEvents().filter(x=>x.id!==editingId));closeModal();renderCalendar()
 }
 setupDaySelect();renderHeader();renderCalendar();
+setInterval(updateCurrentTimeIndicator,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)updateCurrentTimeIndicator()});
 document.getElementById("prevBtn").onclick=()=>{weekOffset--;renderHeader();renderCalendar()};
 document.getElementById("nextBtn").onclick=()=>{weekOffset++;renderHeader();renderCalendar()};
 document.getElementById("todayBtn").onclick=()=>{mobileDay=(new Date().getDay()+6)%7;weekOffset=0;renderHeader();renderCalendar()};
