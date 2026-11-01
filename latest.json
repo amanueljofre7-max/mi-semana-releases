@@ -1,6 +1,6 @@
 {
-  "version": 12,
-  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/599fd5c43ad8a58d969da8172678791638dc1497/app/index.html",
-  "sha256": "e86db5c8e49e3d20939a94cf60c531ed195f5e0c65919b1a2af3e2780de0a983",
-  "notes": "Línea azul de hora actual en el día de hoy"
+  "version": 13,
+  "url": "https://raw.githubusercontent.com/amanueljofre7-max/mi-semana-releases/15b7a7a7ecc40df120ac148afdc6149abc4d65e6/app/index.html",
+  "sha256": "5435d3ebd457c6f919fc8479093b63c14c3443c757a357bb3e19d7271c62540c",
+  "notes": "Plantilla independiente desde el 2 de noviembre: monitor, fútbol y universidad; conserva historial y diseño"
 }
